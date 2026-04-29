@@ -3,20 +3,36 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: KPI tizimi API - Kattaqo'rg'on tumani suv yetkazib berish xizmati
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: departments
+    description: Department operations
+  - name: employees
+    description: Employee operations
+  - name: kpi-categories
+    description: KPI Category operations
+  - name: work-plans
+    description: Monthly work plan operations
+  - name: kpi-indicators
+    description: KPI Indicator operations
+  - name: evaluations
+    description: KPI Evaluation operations
+  - name: dashboard
+    description: Dashboard summary operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +40,872 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List all departments
+      responses:
+        "200":
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create department
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepartmentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /departments/{id}:
+    get:
+      operationId: getDepartment
+      tags: [departments]
+      summary: Get department by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    put:
+      operationId: updateDepartment
+      tags: [departments]
+      summary: Update department
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepartmentBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    delete:
+      operationId: deleteDepartment
+      tags: [departments]
+      summary: Delete department
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List all employees
+      parameters:
+        - name: departmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    put:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /kpi-categories:
+    get:
+      operationId: listKpiCategories
+      tags: [kpi-categories]
+      summary: List KPI categories
+      responses:
+        "200":
+          description: List of KPI categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KpiCategory"
+    post:
+      operationId: createKpiCategory
+      tags: [kpi-categories]
+      summary: Create KPI category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKpiCategoryBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KpiCategory"
+
+  /kpi-categories/{id}:
+    put:
+      operationId: updateKpiCategory
+      tags: [kpi-categories]
+      summary: Update KPI category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKpiCategoryBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KpiCategory"
+    delete:
+      operationId: deleteKpiCategory
+      tags: [kpi-categories]
+      summary: Delete KPI category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /kpi-indicators:
+    get:
+      operationId: listKpiIndicators
+      tags: [kpi-indicators]
+      summary: List KPI indicators
+      parameters:
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of KPI indicators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KpiIndicator"
+    post:
+      operationId: createKpiIndicator
+      tags: [kpi-indicators]
+      summary: Create KPI indicator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKpiIndicatorBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KpiIndicator"
+
+  /kpi-indicators/{id}:
+    put:
+      operationId: updateKpiIndicator
+      tags: [kpi-indicators]
+      summary: Update KPI indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKpiIndicatorBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KpiIndicator"
+    delete:
+      operationId: deleteKpiIndicator
+      tags: [kpi-indicators]
+      summary: Delete KPI indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /evaluations:
+    get:
+      operationId: listEvaluations
+      tags: [evaluations]
+      summary: List evaluations
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: departmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Evaluation"
+    post:
+      operationId: createEvaluation
+      tags: [evaluations]
+      summary: Create evaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvaluationBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluation"
+
+  /evaluations/{id}:
+    get:
+      operationId: getEvaluation
+      tags: [evaluations]
+      summary: Get evaluation by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evaluation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluation"
+    put:
+      operationId: updateEvaluation
+      tags: [evaluations]
+      summary: Update evaluation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvaluationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluation"
+    delete:
+      operationId: deleteEvaluation
+      tags: [evaluations]
+      summary: Delete evaluation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary statistics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/top-employees:
+    get:
+      operationId: getTopEmployees
+      tags: [dashboard]
+      summary: Get top performing employees
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+      responses:
+        "200":
+          description: Top employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeRanking"
+
+  /dashboard/department-scores:
+    get:
+      operationId: getDepartmentScores
+      tags: [dashboard]
+      summary: Get KPI scores by department
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Department scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DepartmentScore"
+
+  /dashboard/recent-evaluations:
+    get:
+      operationId: getRecentEvaluations
+      tags: [dashboard]
+      summary: Get recent evaluations
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Evaluation"
+
+  /work-plans:
+    get:
+      operationId: listWorkPlans
+      tags: [work-plans]
+      summary: List work plans
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: departmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of work plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkPlan"
+    post:
+      operationId: createWorkPlan
+      tags: [work-plans]
+      summary: Create work plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkPlanBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlan"
+
+  /work-plans/{id}:
+    get:
+      operationId: getWorkPlan
+      tags: [work-plans]
+      summary: Get work plan by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Work plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlan"
+    put:
+      operationId: updateWorkPlan
+      tags: [work-plans]
+      summary: Update work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkPlanBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlan"
+    delete:
+      operationId: deleteWorkPlan
+      tags: [work-plans]
+      summary: Delete work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /work-plans/{id}/submit:
+    post:
+      operationId: submitWorkPlan
+      tags: [work-plans]
+      summary: Submit work plan for approval
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlan"
+
+  /work-plans/{id}/approve:
+    post:
+      operationId: approveWorkPlan
+      tags: [work-plans]
+      summary: Approve work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlan"
+
+  /work-plans/{id}/tasks:
+    get:
+      operationId: listWorkPlanTasks
+      tags: [work-plans]
+      summary: List tasks for a work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkPlanTask"
+    post:
+      operationId: createWorkPlanTask
+      tags: [work-plans]
+      summary: Add task to work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkPlanTaskBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlanTask"
+
+  /work-plans/{id}/tasks/{taskId}:
+    put:
+      operationId: updateWorkPlanTask
+      tags: [work-plans]
+      summary: Update task in work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkPlanTaskBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPlanTask"
+    delete:
+      operationId: deleteWorkPlanTask
+      tags: [work-plans]
+      summary: Delete task from work plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /dashboard/monthly-trend:
+    get:
+      operationId: getMonthlyTrend
+      tags: [dashboard]
+      summary: Get monthly KPI score trend
+      responses:
+        "200":
+          description: Monthly trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthlyTrend"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +916,554 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager, viewer]
+        departmentId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - fullName
+        - role
+        - createdAt
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        headName:
+          type: string
+          nullable: true
+        employeeCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - code
+        - employeeCount
+        - createdAt
+
+    CreateDepartmentBody:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        headName:
+          type: string
+          nullable: true
+      required:
+        - name
+        - code
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        position:
+          type: string
+        departmentId:
+          type: integer
+        departmentName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        hireDate:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        averageScore:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - fullName
+        - position
+        - departmentId
+        - status
+        - createdAt
+
+    CreateEmployeeBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        position:
+          type: string
+        departmentId:
+          type: integer
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        hireDate:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+      required:
+        - fullName
+        - position
+        - departmentId
+        - status
+
+    KpiCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        weight:
+          type: number
+        color:
+          type: string
+          nullable: true
+        indicatorCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - weight
+        - indicatorCount
+        - createdAt
+
+    CreateKpiCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        weight:
+          type: number
+        color:
+          type: string
+          nullable: true
+      required:
+        - name
+        - weight
+
+    KpiIndicator:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        targetValue:
+          type: number
+          nullable: true
+        weight:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - categoryId
+        - weight
+        - createdAt
+
+    CreateKpiIndicatorBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+        unit:
+          type: string
+          nullable: true
+        targetValue:
+          type: number
+          nullable: true
+        weight:
+          type: number
+      required:
+        - name
+        - categoryId
+        - weight
+
+    Evaluation:
+      type: object
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        indicatorId:
+          type: integer
+        indicatorName:
+          type: string
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        period:
+          type: string
+        score:
+          type: number
+        maxScore:
+          type: number
+        comment:
+          type: string
+          nullable: true
+        evaluatorId:
+          type: integer
+          nullable: true
+        evaluatorName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - indicatorId
+        - period
+        - score
+        - maxScore
+        - createdAt
+
+    CreateEvaluationBody:
+      type: object
+      properties:
+        employeeId:
+          type: integer
+        indicatorId:
+          type: integer
+        period:
+          type: string
+        score:
+          type: number
+        maxScore:
+          type: number
+        comment:
+          type: string
+          nullable: true
+      required:
+        - employeeId
+        - indicatorId
+        - period
+        - score
+        - maxScore
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalEmployees:
+          type: integer
+        totalDepartments:
+          type: integer
+        totalKpiIndicators:
+          type: integer
+        averageScore:
+          type: number
+        evaluationsThisMonth:
+          type: integer
+        highPerformers:
+          type: integer
+        lowPerformers:
+          type: integer
+        currentPeriod:
+          type: string
+      required:
+        - totalEmployees
+        - totalDepartments
+        - totalKpiIndicators
+        - averageScore
+        - evaluationsThisMonth
+        - highPerformers
+        - lowPerformers
+        - currentPeriod
+
+    EmployeeRanking:
+      type: object
+      properties:
+        employeeId:
+          type: integer
+        fullName:
+          type: string
+        position:
+          type: string
+        departmentName:
+          type: string
+          nullable: true
+        averageScore:
+          type: number
+        scorePercentage:
+          type: number
+        rank:
+          type: integer
+      required:
+        - employeeId
+        - fullName
+        - position
+        - averageScore
+        - scorePercentage
+        - rank
+
+    DepartmentScore:
+      type: object
+      properties:
+        departmentId:
+          type: integer
+        departmentName:
+          type: string
+        averageScore:
+          type: number
+        scorePercentage:
+          type: number
+        employeeCount:
+          type: integer
+      required:
+        - departmentId
+        - departmentName
+        - averageScore
+        - scorePercentage
+        - employeeCount
+
+    MonthlyTrend:
+      type: object
+      properties:
+        month:
+          type: string
+        averageScore:
+          type: number
+        evaluationCount:
+          type: integer
+      required:
+        - month
+        - averageScore
+        - evaluationCount
+
+    WorkPlanTask:
+      type: object
+      properties:
+        id:
+          type: integer
+        planId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        deadline:
+          type: string
+          nullable: true
+        completionPercentage:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        createdAt:
+          type: string
+      required:
+        - id
+        - planId
+        - title
+        - completionPercentage
+        - status
+        - createdAt
+
+    CreateWorkPlanTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        deadline:
+          type: string
+          nullable: true
+        completionPercentage:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+      required:
+        - title
+        - completionPercentage
+        - status
+
+    WorkPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        period:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, submitted, approved, completed]
+        approvedById:
+          type: integer
+          nullable: true
+        approvedByName:
+          type: string
+          nullable: true
+        approveComment:
+          type: string
+          nullable: true
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkPlanTask"
+        taskCount:
+          type: integer
+        completedTaskCount:
+          type: integer
+        overallProgress:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - period
+        - title
+        - status
+        - tasks
+        - taskCount
+        - completedTaskCount
+        - overallProgress
+        - createdAt
+
+    CreateWorkPlanBody:
+      type: object
+      properties:
+        employeeId:
+          type: integer
+        period:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required:
+        - employeeId
+        - period
+        - title

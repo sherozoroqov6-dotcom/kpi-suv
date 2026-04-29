@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "KPI SUV Tizimi"
+version = "1.0.0"
+id = "artifacts/kpi-suv"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18094
+
+[services.development]
+run = "pnpm --filter @workspace/kpi-suv run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/kpi-suv", "run", "build" ]
+publicDir = "artifacts/kpi-suv/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18094"
+BASE_PATH = "/"

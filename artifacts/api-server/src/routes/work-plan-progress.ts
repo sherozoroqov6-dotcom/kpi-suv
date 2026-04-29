@@ -69,6 +69,16 @@ router.patch(
     const [plan] = await db.select().from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);
     if (!plan) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
 
+    // Get current task to check existing pdfUrl for PDF requirement enforcement
+    const [currentTask] = await db
+      .select()
+      .from(workPlanTasksTable)
+      .where(and(eq(workPlanTasksTable.id, taskId), eq(workPlanTasksTable.planId, planId)))
+      .limit(1);
+    if (!currentTask) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
+
+    const isAdminOrManager = req.user!.role === "admin" || req.user!.role === "manager";
+
     const { actualVolume, completionPercentage, status, pdfUrl, actualResult } = req.body as {
       actualVolume?: string | null;
       completionPercentage?: number;
@@ -77,10 +87,27 @@ router.patch(
       actualResult?: string | null;
     };
 
+    // Rule 1: Non-admin users must attach a PDF when reporting actualVolume
+    if (!isAdminOrManager && actualVolume !== undefined && actualVolume !== null && actualVolume !== "") {
+      const incomingPdf = pdfUrl !== undefined && pdfUrl !== null && pdfUrl !== "";
+      const existingPdf = !!currentTask.pdfUrl;
+      if (!incomingPdf && !existingPdf) {
+        res.status(400).json({ error: "PDF fayl yuklash majburiy" });
+        return;
+      }
+    }
+
     const updateData: Record<string, unknown> = {};
     if (actualVolume !== undefined)        updateData.actualVolume = actualVolume;
     if (completionPercentage !== undefined) updateData.completionPercentage = completionPercentage;
-    if (status !== undefined)              updateData.status = status;
+    if (status !== undefined) {
+      // Rule 2: Only admin/manager can mark a task as "completed"
+      if (status === "completed" && !isAdminOrManager) {
+        updateData.status = "in_progress";
+      } else {
+        updateData.status = status;
+      }
+    }
     if (pdfUrl !== undefined)              updateData.pdfUrl = pdfUrl;
     if (actualResult !== undefined)        updateData.actualResult = actualResult;
 

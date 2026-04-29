@@ -712,15 +712,29 @@ export default function WorkPlanDetail() {
   const saveProgress = async (taskId: number) => {
     const edit = progressEdits[taskId];
     if (!edit) return;
+    // PDF mandatory check: when actualVolume is being entered, a PDF must exist
+    if (edit.actualVolume && edit.actualVolume.trim() !== "") {
+      const task = plan?.tasks?.find((t: any) => t.id === taskId);
+      const hasPdf = !!edit.pdfUrl || !!task?.pdfUrl;
+      if (!hasPdf && !isAdminOrManager) {
+        toast({
+          title: "PDF fayl yuklash majburiy",
+          description: "Avval tasdiqlovchi PDF faylni yuklang, keyin saqlang",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
     try {
       const body: Record<string, unknown> = { actualVolume: edit.actualVolume || null };
       if (edit.pdfUrl) body.pdfUrl = edit.pdfUrl;
-      // Auto-calculate completionPercentage: Amalda / Reja * 100 (max 100)
+      // Auto-calculate completionPercentage but DO NOT auto-mark as completed.
+      // Only admin/manager approval (via approveTask) can set status="completed".
       const pct = calcPct(taskId, edit.actualVolume);
       if (pct !== null) {
         body.completionPercentage = pct;
-        body.status = pct === 100 ? "completed" : pct > 0 ? "in_progress" : "pending";
+        body.status = pct > 0 ? "in_progress" : "pending";
       }
       await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
         method: "PATCH",
@@ -728,7 +742,10 @@ export default function WorkPlanDetail() {
         headers: { "Content-Type": "application/json" },
       } as any);
       invalidate();
-      toast({ title: "Saqlandi" });
+      toast({
+        title: "Saqlandi",
+        description: isAdminOrManager ? undefined : "Admin tasdig'i kutilmoqda",
+      });
       setEditingProgressIds((prev) => {
         const next = new Set(prev);
         next.delete(taskId);
@@ -1247,6 +1264,9 @@ export default function WorkPlanDetail() {
                                     )}
                                     {task.status === "completed" && (
                                       <span className="text-[10px] text-emerald-700 font-semibold">✓ Tasdiqlangan</span>
+                                    )}
+                                    {task.status !== "completed" && !isAdminOrManager && (
+                                      <span className="text-[10px] text-amber-600 font-semibold">⏳ Tasdiqlash kutilmoqda</span>
                                     )}
                                   </div>
                                 );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLang } from "@/lib/lang-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch, useGetMe } from "@workspace/api-client-react";
@@ -102,6 +102,106 @@ function WorkPlanDetailModal({
   isPending: boolean;
 }) {
   const { t, d } = useLang();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: user } = useGetMe();
+  const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
+  const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
+
+  // Modal ochilganda to'liq plan ma'lumotini (tasks bilan) olish
+  const { data: fullPlan } = useQuery<any>({
+    queryKey: ["/api/work-plans", plan?.id],
+    queryFn: () => customFetch<any>(`${BASE}/api/work-plans/${plan!.id}`),
+    enabled: !!plan?.id && open,
+  });
+
+  // Ijro/Mehnat avto-vazifalarini topish (planlangan tasks ichidan)
+  const tasksAll = fullPlan?.tasks ?? plan?.tasks ?? [];
+  const ijroTask = tasksAll.find((t: any) => t.category === "ijro");
+  const mehnatTask = tasksAll.find((t: any) => t.category === "mehnat");
+  const showIjroBlock = isIjroResponsibleUser && !!ijroTask;
+  const showMehnatBlock = isMehnatResponsibleUser && !!mehnatTask;
+
+  // Edit state
+  const [ijroEdit, setIjroEdit] = useState<{ planned: string; actual: string; late: string; un: string; saving: boolean }>({ planned: "", actual: "", late: "", un: "", saving: false });
+  const [mehnatEdit, setMehnatEdit] = useState<{ ball: string; saving: boolean }>({ ball: "", saving: false });
+
+  // fullPlan kelganda mavjud qiymatlarni state'ga yuklash
+  useEffect(() => {
+    if (ijroTask) {
+      setIjroEdit({
+        planned: ijroTask.plannedVolume ?? "",
+        actual: ijroTask.actualVolume ?? "",
+        late: ijroTask.ijroLate != null ? String(ijroTask.ijroLate) : "",
+        un: ijroTask.ijroUnexecuted != null ? String(ijroTask.ijroUnexecuted) : "",
+        saving: false,
+      });
+    }
+  }, [ijroTask?.id, ijroTask?.plannedVolume, ijroTask?.actualVolume, ijroTask?.ijroLate, ijroTask?.ijroUnexecuted]);
+
+  useEffect(() => {
+    if (mehnatTask) {
+      setMehnatEdit({
+        ball: mehnatTask.mehnatResult ?? "",
+        saving: false,
+      });
+    }
+  }, [mehnatTask?.id, mehnatTask?.mehnatResult]);
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/work-plans", plan?.id] });
+    queryClient.invalidateQueries({ queryKey: ["approve-work-plans"] });
+  };
+
+  const saveIjro = async () => {
+    if (!ijroTask || !plan) return;
+    setIjroEdit((p) => ({ ...p, saving: true }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${plan.id}/tasks/${ijroTask.id}/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plannedVolume: ijroEdit.planned || null,
+          actualVolume: ijroEdit.actual || null,
+          ijroLate: ijroEdit.late ? parseInt(ijroEdit.late) : null,
+          ijroUnexecuted: ijroEdit.un ? parseInt(ijroEdit.un) : null,
+        }),
+      } as any);
+      toast({ title: "Saqlandi" });
+      refresh();
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setIjroEdit((p) => ({ ...p, saving: false }));
+    }
+  };
+
+  const saveMehnat = async () => {
+    if (!mehnatTask || !plan) return;
+    const raw = (mehnatEdit.ball ?? "").toString().replace(",", ".").trim();
+    if (raw !== "") {
+      const n = Number(raw);
+      if (isNaN(n) || n < 0 || n > 5) {
+        toast({ title: "Ball 0–5 oralig'ida bo'lishi kerak", variant: "destructive" });
+        return;
+      }
+    }
+    setMehnatEdit((p) => ({ ...p, saving: true }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${plan.id}/tasks/${mehnatTask.id}/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mehnatResult: raw === "" ? null : raw }),
+      } as any);
+      toast({ title: "Saqlandi" });
+      refresh();
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setMehnatEdit((p) => ({ ...p, saving: false }));
+    }
+  };
+
   if (!plan) return null;
   const canAct = plan.status === "submitted" || plan.status === "pending" || plan.status === "draft";
   const realTasks = (plan.tasks ?? []).filter((task: any) => !task.isSection);
@@ -208,6 +308,89 @@ function WorkPlanDetailModal({
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3 text-sm text-amber-800">
               <span className="text-lg">📋</span>
               <span>{t("lbl_submitted_notice")}</span>
+            </div>
+          )}
+
+          {/* Ijro intizomi mas'uli uchun kiritish bloki */}
+          {showIjroBlock && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50/50 dark:bg-amber-950/10 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">Ijro intizomi</span>
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ijro.gov xat-hujjatlar — bu ijrochi uchun ko'rsatkichlarni kiriting</span>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="block mb-1 font-medium">Kelib tushgan</span>
+                  <input className="w-24 border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={ijroEdit.planned} onChange={(e) => setIjroEdit((p) => ({ ...p, planned: e.target.value }))} />
+                </label>
+                <label className="text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="block mb-1 font-medium">Bajarilgan</span>
+                  <input className="w-24 border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={ijroEdit.actual} onChange={(e) => setIjroEdit((p) => ({ ...p, actual: e.target.value }))} />
+                </label>
+                <label className="text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="block mb-1 font-medium">Muddatdan kech</span>
+                  <input className="w-24 border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={ijroEdit.late} onChange={(e) => setIjroEdit((p) => ({ ...p, late: e.target.value }))} />
+                </label>
+                <label className="text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="block mb-1 font-medium">Bajarilmagan</span>
+                  <input className="w-24 border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={ijroEdit.un} onChange={(e) => setIjroEdit((p) => ({ ...p, un: e.target.value }))} />
+                </label>
+                <div className="flex flex-col items-center px-3 border-l border-amber-200">
+                  <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                  <div className="text-base font-bold text-amber-700">{(() => {
+                    const pl = parseFloat(ijroEdit.planned || "0");
+                    const ac = parseFloat(ijroEdit.actual || "0");
+                    return pl > 0 ? `${Math.min(100, Math.max(0, Math.round((ac / pl) * 100)))}%` : "—";
+                  })()}</div>
+                </div>
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white h-9 text-xs" onClick={saveIjro} disabled={ijroEdit.saving}>
+                  {ijroEdit.saving ? "..." : "Saqlash"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mehnat intizomi (Malaka talabi) mas'uli uchun kiritish bloki */}
+          {showMehnatBlock && (
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/10 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Malaka talabi</span>
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Xodimning malaka talabi — 0–5 ball oralig'ida baholang</span>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="block mb-1 font-medium">Ball (0–5)</span>
+                  <input
+                    className="w-32 border rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    type="number" min="0" max="5" step="0.1"
+                    value={mehnatEdit.ball}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") { setMehnatEdit((p) => ({ ...p, ball: "" })); return; }
+                      const n = Number(raw.replace(",", "."));
+                      if (isNaN(n)) { setMehnatEdit((p) => ({ ...p, ball: raw })); return; }
+                      if (n > 5) { setMehnatEdit((p) => ({ ...p, ball: "5" })); return; }
+                      if (n < 0) { setMehnatEdit((p) => ({ ...p, ball: "0" })); return; }
+                      setMehnatEdit((p) => ({ ...p, ball: raw }));
+                    }}
+                    placeholder="masalan 4.5"
+                  />
+                </label>
+                <div className="flex flex-col items-center px-3 border-l border-emerald-200">
+                  <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                  <div className="text-base font-bold text-emerald-700">{(() => {
+                    const s = (mehnatEdit.ball ?? "").toString().replace(",", ".").trim();
+                    if (s === "") return "—";
+                    const n = Number(s);
+                    if (isNaN(n)) return "—";
+                    const c = Math.min(5, Math.max(0, n));
+                    return `${Math.round((c / 5) * 100)}%`;
+                  })()}</div>
+                </div>
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-xs" onClick={saveMehnat} disabled={mehnatEdit.saving}>
+                  {mehnatEdit.saving ? "..." : "Saqlash"}
+                </Button>
+              </div>
             </div>
           )}
 

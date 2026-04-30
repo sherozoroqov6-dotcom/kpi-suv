@@ -59,6 +59,20 @@ const RENAMES: Array<{ name: string; sql: string }> = [
           WHERE title = 'Mehnat intizomi (avto-vazifa)'
             AND category = 'mehnat'`,
   },
+  {
+    name: "reorder_mehnat_to_top",
+    sql: `UPDATE work_plan_tasks
+          SET order_num = 0
+          WHERE category = 'mehnat'
+            AND order_num <> 0`,
+  },
+  {
+    name: "reorder_ijro_after_mehnat",
+    sql: `UPDATE work_plan_tasks
+          SET order_num = 1
+          WHERE category = 'ijro'
+            AND order_num = 0`,
+  },
 ];
 
 export async function runAutoMigrate(): Promise<void> {

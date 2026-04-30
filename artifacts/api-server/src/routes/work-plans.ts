@@ -72,7 +72,7 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
   if (ijroEligible && !tasks.some((t) => t.category === "ijro")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,
-      orderNum: 0,
+      orderNum: 1,
       isSection: false,
       title: "Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar",
       unitOfMeasure: "dona",
@@ -92,7 +92,7 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
   if (mehnatEligible && !tasks.some((t) => t.category === "mehnat")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,
-      orderNum: 1,
+      orderNum: 0,
       isSection: false,
       title: "Malaka talabi (avto-vazifa)",
       unitOfMeasure: "soat",

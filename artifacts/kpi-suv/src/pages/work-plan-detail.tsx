@@ -765,12 +765,17 @@ export default function WorkPlanDetail() {
     }
     setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
     try {
-      const body: Record<string, unknown> = { actualVolume: edit.actualVolume || null };
+      const isCleared = !edit.actualVolume || (typeof edit.actualVolume === "string" && edit.actualVolume.trim() === "");
+      const body: Record<string, unknown> = { actualVolume: isCleared ? null : edit.actualVolume };
       if (edit.pdfUrl) body.pdfUrl = edit.pdfUrl;
       // Foiz (completionPercentage) FAQAT admin tasdig'idan keyin hisoblanadi.
       // Foydalanuvchi saqlasa — foiz 0'ga reset bo'ladi, status "kutilmoqda".
       // Admin tasdiqlaganida (approveTask) actualVolume/plannedVolume bo'yicha foiz hisoblanadi.
-      if (isAdminOrManager) {
+      if (isCleared) {
+        // Amalda o'chirildi — foiz va status'ni reset qilish (admin/xodim ikkalasi uchun)
+        body.completionPercentage = 0;
+        body.status = "pending";
+      } else if (isAdminOrManager) {
         // Admin xohlasa, frontend hisobini saqlasin (qulaylik uchun)
         const pct = calcPct(taskId, edit.actualVolume);
         if (pct !== null) {

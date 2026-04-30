@@ -162,6 +162,17 @@ router.patch(
         updateData.completionPercentage = 0;
       }
     }
+    // Rule 4 (bug fix): agar oddiy vazifa Amalda (actualVolume) bo'shaytirilsa
+    // — foiz va status'ni avtomatik reset qilish (admin uchun ham, xodim uchun ham).
+    if (!isIjroTask && !isMehnatTask && actualVolume !== undefined) {
+      const av = actualVolume;
+      const isCleared = av === null || (typeof av === "string" && av.trim() === "");
+      if (isCleared) {
+        updateData.actualVolume = null;
+        updateData.completionPercentage = 0;
+        updateData.status = "pending";
+      }
+    }
     if (pdfUrl !== undefined)              updateData.pdfUrl = pdfUrl;
     if (actualResult !== undefined)        updateData.actualResult = actualResult;
 

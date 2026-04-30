@@ -1153,148 +1153,179 @@ export default function WorkPlanDetail() {
                   const sel = "w-full border rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400";
                   const setIE = (field: string, val: any) => setInlineEditTask((prev: any) => ({ ...prev, [field]: val }));
 
-                  // ── Maxsus ijro intizomi qatori ─────────────────────────
-                  if (task.category === "ijro") {
-                    const e = ijroEdits[task.id] ?? { plannedVolume: "", actualVolume: "", ijroLate: "", ijroUnexecuted: "", saving: false };
-                    const setIJ = (field: string, val: string) =>
-                      setIjroEdits((p) => ({ ...p, [task.id]: { ...(p[task.id] ?? e), [field]: val } }));
-                    const planned = parseFloat(e.plannedVolume || "0");
-                    const actual = parseFloat(e.actualVolume || "0");
-                    const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;
-                    const totalCols = isLocked ? 13 : 12;
-                    const ijroDisabled = !canEditIjroTask;
-                    const inpCls = "w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
-                    return (
-                      <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
-                        <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
-                        <td colSpan={totalCols} className="px-3 py-3 border-r">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">Ijro intizomi</span>
-                              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                                Ijro.gov bo'yicha kelib tushgan xat-hujjatlar (avto-vazifa)
-                              </span>
-                              {ijroDisabled ? (
-                                <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
-                                  🔒 Faqat Ijro.gov mas'uli to'ldira oladi
-                                </span>
-                              ) : (
-                                !isAdminOrManager && (
-                                  <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
-                                )
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-end gap-3">
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Kelib tushgan</span>
-                                <input className={inpCls} type="number" min="0" value={e.plannedVolume} disabled={ijroDisabled}
-                                  onChange={(ev) => setIJ("plannedVolume", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Bajarilgan</span>
-                                <input className={inpCls} type="number" min="0" value={e.actualVolume} disabled={ijroDisabled}
-                                  onChange={(ev) => setIJ("actualVolume", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Muddatidan kech</span>
-                                <input className={inpCls} type="number" min="0" value={e.ijroLate} disabled={ijroDisabled}
-                                  onChange={(ev) => setIJ("ijroLate", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Bajarilmagan</span>
-                                <input className={inpCls} type="number" min="0" value={e.ijroUnexecuted} disabled={ijroDisabled}
-                                  onChange={(ev) => setIJ("ijroUnexecuted", ev.target.value)} />
-                              </label>
-                              <div className="flex flex-col items-center px-3 border-l border-amber-200">
-                                <div className="text-[10px] text-gray-500 uppercase">KPI</div>
-                                <div className="text-base font-bold text-amber-700">{ijroPct !== null ? `${ijroPct}%` : "—"}</div>
-                              </div>
-                              {!ijroDisabled && (
-                                <button
-                                  onClick={() => saveIjroProgress(task.id)}
-                                  disabled={e.saving}
-                                  className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
-                                >
-                                  {e.saving ? "Saqlanmoqda..." : "Saqlash"}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
+                  // ── Maxsus ijro/mehnat intizomi qatori (yonma-yon) ──────
+                  const ijroTaskAll = plan.tasks?.find((t: any) => t.category === "ijro");
+                  const mehnatTaskAll = plan.tasks?.find((t: any) => t.category === "mehnat");
+                  // Agar mehnat alohida render bo'lsa va ijro mavjud bo'lsa — uni o'tkazib yuboramiz (ijro qatorida ko'rsatilgan).
+                  if (task.category === "mehnat" && ijroTaskAll) return null;
 
-                  // ── Maxsus mehnat intizomi qatori ────────────────────────
-                  if (task.category === "mehnat") {
-                    const m = mehnatEdits[task.id] ?? { workHours: "", lateMinutes: "", lateDays: "", result: "", saving: false };
-                    const setM = (field: string, val: string) =>
-                      setMehnatEdits((p) => ({ ...p, [task.id]: { ...(p[task.id] ?? m), [field]: val } }));
-                    const hours = parseFloat(m.workHours || "0");
-                    const lateMin = parseFloat(m.lateMinutes || "0");
-                    let mehnatPct: number | null = null;
-                    if (hours > 0) {
-                      const penalty = Math.min(100, (lateMin / (hours * 60)) * 100);
-                      mehnatPct = Math.max(0, Math.round(100 - penalty));
-                    } else if (lateMin === 0 && m.workHours !== "") {
-                      mehnatPct = 100;
-                    }
+                  if (task.category === "ijro" || task.category === "mehnat") {
                     const totalCols = isLocked ? 13 : 12;
-                    const mehnatDisabled = !canEditMehnatTask;
-                    const mInpCls = "w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+
+                    // Ijro bloki
+                    const ijroBlock = ijroTaskAll ? (() => {
+                      const e = ijroEdits[ijroTaskAll.id] ?? { plannedVolume: "", actualVolume: "", ijroLate: "", ijroUnexecuted: "", saving: false };
+                      const setIJ = (field: string, val: string) =>
+                        setIjroEdits((p) => ({ ...p, [ijroTaskAll.id]: { ...(p[ijroTaskAll.id] ?? e), [field]: val } }));
+                      const planned = parseFloat(e.plannedVolume || "0");
+                      const actual = parseFloat(e.actualVolume || "0");
+                      const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;
+                      const ijroDisabled = !canEditIjroTask;
+                      const inpCls = "w-20 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">Ijro intizomi</span>
+                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              Ijro.gov xat-hujjatlar
+                            </span>
+                            {ijroDisabled ? (
+                              <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                🔒 Faqat Ijro.gov mas'uli
+                              </span>
+                            ) : (
+                              !isAdminOrManager && (
+                                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
+                              )
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Kelib tushgan</span>
+                              <input className={inpCls} type="number" min="0" value={e.plannedVolume} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("plannedVolume", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Bajarilgan</span>
+                              <input className={inpCls} type="number" min="0" value={e.actualVolume} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("actualVolume", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Muddatdan kech</span>
+                              <input className={inpCls} type="number" min="0" value={e.ijroLate} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("ijroLate", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Bajarilmagan</span>
+                              <input className={inpCls} type="number" min="0" value={e.ijroUnexecuted} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("ijroUnexecuted", ev.target.value)} />
+                            </label>
+                            <div className="flex flex-col items-center px-2 border-l border-amber-200">
+                              <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                              <div className="text-base font-bold text-amber-700">{ijroPct !== null ? `${ijroPct}%` : "—"}</div>
+                            </div>
+                            {!ijroDisabled && (
+                              <button
+                                onClick={() => saveIjroProgress(ijroTaskAll.id)}
+                                disabled={e.saving}
+                                className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                              >
+                                {e.saving ? "..." : "Saqlash"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })() : null;
+
+                    // Mehnat bloki
+                    const mehnatBlock = mehnatTaskAll ? (() => {
+                      const m = mehnatEdits[mehnatTaskAll.id] ?? { workHours: "", lateMinutes: "", lateDays: "", result: "", saving: false };
+                      const setM = (field: string, val: string) =>
+                        setMehnatEdits((p) => ({ ...p, [mehnatTaskAll.id]: { ...(p[mehnatTaskAll.id] ?? m), [field]: val } }));
+                      const hours = parseFloat(m.workHours || "0");
+                      const lateMin = parseFloat(m.lateMinutes || "0");
+                      let mehnatPct: number | null = null;
+                      if (hours > 0) {
+                        const penalty = Math.min(100, (lateMin / (hours * 60)) * 100);
+                        mehnatPct = Math.max(0, Math.round(100 - penalty));
+                      } else if (lateMin === 0 && m.workHours !== "") {
+                        mehnatPct = 100;
+                      }
+                      const mehnatDisabled = !canEditMehnatTask;
+                      const mInpCls = "w-20 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Mehnat intizomi</span>
+                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              Xodimning oylik mehnat intizomi
+                            </span>
+                            {mehnatDisabled && (
+                              <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                🔒 Faqat Mehnat mas'uli
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Ish soati</span>
+                              <input className={mInpCls} type="number" min="0" value={m.workHours} disabled={mehnatDisabled}
+                                onChange={(ev) => setM("workHours", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Kech daqiqa</span>
+                              <input className={mInpCls} type="number" min="0" value={m.lateMinutes} disabled={mehnatDisabled}
+                                onChange={(ev) => setM("lateMinutes", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Kech kunlar</span>
+                              <input className={mInpCls} type="number" min="0" value={m.lateDays} disabled={mehnatDisabled}
+                                onChange={(ev) => setM("lateDays", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Natija</span>
+                              <input className={`${mInpCls} w-32`} type="text" value={m.result} disabled={mehnatDisabled}
+                                onChange={(ev) => setM("result", ev.target.value)} placeholder="Yaxshi" />
+                            </label>
+                            <div className="flex flex-col items-center px-2 border-l border-emerald-200">
+                              <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                              <div className="text-base font-bold text-emerald-700">{mehnatPct !== null ? `${mehnatPct}%` : "—"}</div>
+                            </div>
+                            {!mehnatDisabled && (
+                              <button
+                                onClick={() => saveMehnatProgress(mehnatTaskAll.id)}
+                                disabled={m.saving}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                              >
+                                {m.saving ? "..." : "Saqlash"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })() : null;
+
+                    // Render: ijro va mehnat bo'lsa ikkita td yonma-yon, faqat bittasi bo'lsa to'liq kenglik
+                    if (ijroBlock && mehnatBlock) {
+                      const halfL = Math.ceil(totalCols / 2);
+                      const halfR = totalCols - halfL;
+                      return (
+                        <tr key={task.id} className="border-b hover:bg-gray-50/50">
+                          <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                          <td colSpan={halfL} className="px-3 py-3 border-r bg-amber-50/40 dark:bg-amber-950/10 align-top">
+                            {ijroBlock}
+                          </td>
+                          <td colSpan={halfR} className="px-3 py-3 border-r bg-emerald-50/40 dark:bg-emerald-950/10 align-top">
+                            {mehnatBlock}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    // Faqat ijro
+                    if (ijroBlock) {
+                      return (
+                        <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
+                          <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                          <td colSpan={totalCols} className="px-3 py-3 border-r">{ijroBlock}</td>
+                        </tr>
+                      );
+                    }
+                    // Faqat mehnat
                     return (
                       <tr key={task.id} className="border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70">
                         <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
-                        <td colSpan={totalCols} className="px-3 py-3 border-r">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Mehnat intizomi</span>
-                              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                                Xodimning oylik mehnat intizomi (avto-vazifa)
-                              </span>
-                              {mehnatDisabled && (
-                                <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
-                                  🔒 Faqat Mehnat intizomi mas'uli to'ldira oladi
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-end gap-3">
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Oylik ish soati</span>
-                                <input className={mInpCls} type="number" min="0" value={m.workHours} disabled={mehnatDisabled}
-                                  onChange={(ev) => setM("workHours", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Kechikkan daqiqa</span>
-                                <input className={mInpCls} type="number" min="0" value={m.lateMinutes} disabled={mehnatDisabled}
-                                  onChange={(ev) => setM("lateMinutes", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Kech kelgan kunlar</span>
-                                <input className={mInpCls} type="number" min="0" value={m.lateDays} disabled={mehnatDisabled}
-                                  onChange={(ev) => setM("lateDays", ev.target.value)} />
-                              </label>
-                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
-                                <span className="block mb-0.5 font-medium">Natija (izoh)</span>
-                                <input className={`${mInpCls} w-48`} type="text" value={m.result} disabled={mehnatDisabled}
-                                  onChange={(ev) => setM("result", ev.target.value)} placeholder="Masalan: Yaxshi" />
-                              </label>
-                              <div className="flex flex-col items-center px-3 border-l border-emerald-200">
-                                <div className="text-[10px] text-gray-500 uppercase">KPI</div>
-                                <div className="text-base font-bold text-emerald-700">{mehnatPct !== null ? `${mehnatPct}%` : "—"}</div>
-                              </div>
-                              {!mehnatDisabled && (
-                                <button
-                                  onClick={() => saveMehnatProgress(task.id)}
-                                  disabled={m.saving}
-                                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
-                                >
-                                  {m.saving ? "Saqlanmoqda..." : "Saqlash"}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </td>
+                        <td colSpan={totalCols} className="px-3 py-3 border-r">{mehnatBlock}</td>
                       </tr>
                     );
                   }

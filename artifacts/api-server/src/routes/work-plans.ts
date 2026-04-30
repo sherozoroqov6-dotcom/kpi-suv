@@ -67,8 +67,9 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
   const hasMehnatResponsible = mehnatResp.length > 0;
 
   // Ijro intizomi avto-vazifasi: agar tizimda Ijro mas'uli bor bo'lsa va shu rejaning
-  // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa — yaratamiz.
-  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasIjroResponsible);
+  // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) BO'LSA — yaratamiz.
+  // Ijro.gov bo'yicha mas'ul xodimning o'z rejasida ham yaratiladi (assigned bo'lmasa ham).
+  const ijroEligible = !!(emp && (emp.isIjroAssigned || emp.isIjroResponsible) && hasIjroResponsible);
   if (ijroEligible && !tasks.some((t) => t.category === "ijro")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,
@@ -86,9 +87,9 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
       .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
   }
 
-  // Mehnat intizomi avto-vazifasi: tizimda Mehnat mas'uli bor bo'lsa, mas'ulning
-  // o'zidan tashqari barcha xodimlarga avto-vazifa qo'shamiz.
-  const mehnatEligible = !!(emp && !emp.isMehnatResponsible && hasMehnatResponsible);
+  // Mehnat intizomi avto-vazifasi: tizimda Mehnat mas'uli bor bo'lsa,
+  // BARCHA xodimlarga (mas'ulning o'ziga ham) avto-vazifa qo'shamiz.
+  const mehnatEligible = !!(emp && hasMehnatResponsible);
   if (mehnatEligible && !tasks.some((t) => t.category === "mehnat")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,

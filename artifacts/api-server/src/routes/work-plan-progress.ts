@@ -136,6 +136,15 @@ router.patch(
         updateData.status = status;
       }
     }
+    // Rule 3: Faqat admin/manager (yoki ijro maxsus avto-hisobi) completionPercentage'ni > 0 qila oladi.
+    // Oddiy xodim actualVolume saqlasa — foiz 0'ga reset bo'ladi (qayta tasdiqlash zarur).
+    if (!isIjroTask && !isAdminOrManager) {
+      if (actualVolume !== undefined) {
+        updateData.completionPercentage = 0;
+      } else if (completionPercentage !== undefined && Number(completionPercentage) > 0) {
+        updateData.completionPercentage = 0;
+      }
+    }
     if (pdfUrl !== undefined)              updateData.pdfUrl = pdfUrl;
     if (actualResult !== undefined)        updateData.actualResult = actualResult;
 

@@ -53,6 +53,7 @@ workspace/
 - `/api/auth/me` javobi `isIjroResponsible: boolean` qaytaradi (joriy foydalanuvchi linked employee'siga qarab). Frontend `canEditIjroTask` shu maydondan chiqariladi — ijro intizomi qatori inputlari va Saqlash tugmasi faqat admin/manager yoki Ijro mas'uli uchun faol.
 - RBAC `/api/employees`: POST/DELETE — faqat admin/manager. PUT — admin/manager to'liq tahrir; Ijro mas'uli faqat `isIjroAssigned`'ni almashtira oladi (qolgan maydonlar mavjud qiymatda saqlanadi); boshqa foydalanuvchilarga 403.
 - RBAC `/api/work-plans/:planId/tasks/:taskId/progress`: ijro vazifasi (category="ijro") uchun PATCH faqat admin/manager yoki linked employee'si Ijro mas'uli bo'lgan foydalanuvchiga ruxsat etilgan; boshqalarga 403.
+- Vazifa progress qoidasi: oddiy xodim (admin/manager bo'lmagan) `actualVolume` saqlasa — `completionPercentage` server tomonida majburan **0**'ga reset bo'ladi va status "pending" qoladi. Foiz faqat admin tasdiqlaganida (`approveTask`) hisoblanadi (= bajarilgan/reja*100, 0–100). Qayta tahrir qilinsa, foiz yana 0 — qayta tasdiqlash zarur.
 - DIQQAT: Xodimlar ro'yxati `/staff` route ostida `staff.tsx` faylda (legacy `employees.tsx` ham bor — `/employees` uchun). Yangi maydonlar IKKALA faylga ham qo'shilishi kerak.
 - `work_plan_tasks` — ish reja vazifalari
 - `mfylar` — mahalla fuqarolik yig'inlari (MFY)

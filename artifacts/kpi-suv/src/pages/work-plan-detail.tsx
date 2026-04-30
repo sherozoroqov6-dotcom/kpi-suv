@@ -747,12 +747,20 @@ export default function WorkPlanDetail() {
     try {
       const body: Record<string, unknown> = { actualVolume: edit.actualVolume || null };
       if (edit.pdfUrl) body.pdfUrl = edit.pdfUrl;
-      // Auto-calculate completionPercentage but DO NOT auto-mark as completed.
-      // Only admin/manager approval (via approveTask) can set status="completed".
-      const pct = calcPct(taskId, edit.actualVolume);
-      if (pct !== null) {
-        body.completionPercentage = pct;
-        body.status = pct > 0 ? "in_progress" : "pending";
+      // Foiz (completionPercentage) FAQAT admin tasdig'idan keyin hisoblanadi.
+      // Foydalanuvchi saqlasa — foiz 0'ga reset bo'ladi, status "kutilmoqda".
+      // Admin tasdiqlaganida (approveTask) actualVolume/plannedVolume bo'yicha foiz hisoblanadi.
+      if (isAdminOrManager) {
+        // Admin xohlasa, frontend hisobini saqlasin (qulaylik uchun)
+        const pct = calcPct(taskId, edit.actualVolume);
+        if (pct !== null) {
+          body.completionPercentage = pct;
+          body.status = pct > 0 ? "in_progress" : "pending";
+        }
+      } else {
+        // Oddiy xodim saqlaganida — har safar qayta tasdiqlash zarur
+        body.completionPercentage = 0;
+        body.status = "pending";
       }
       await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
         method: "PATCH",
@@ -829,13 +837,22 @@ export default function WorkPlanDetail() {
   const approveTask = async (taskId: number) => {
     setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], approving: true } }));
     try {
+      // Tasdiqlash payti foizni real qiymatlar bo'yicha hisoblash:
+      // foiz = bajarilgan / reja * 100 (0–100 oralig'ida)
+      const task = plan?.tasks?.find((t: any) => t.id === taskId);
+      const planned = parseFloat((task as any)?.plannedVolume ?? "0");
+      const actual = parseFloat((task as any)?.actualVolume ?? "0");
+      let pct = 100;
+      if (!isNaN(planned) && planned > 0 && !isNaN(actual) && actual >= 0) {
+        pct = Math.min(100, Math.max(0, Math.round((actual / planned) * 100)));
+      }
       await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
         method: "PATCH",
-        body: JSON.stringify({ status: "completed", completionPercentage: 100 }),
+        body: JSON.stringify({ status: "completed", completionPercentage: pct }),
         headers: { "Content-Type": "application/json" },
       } as any);
       invalidate();
-      toast({ title: "Vazifa tasdiqlandi va bajarilgan deb belgilandi" });
+      toast({ title: `Vazifa tasdiqlandi (${pct}%)` });
     } catch {
       toast({ title: "Tasdiqlashda xatolik yuz berdi", variant: "destructive" });
     } finally {

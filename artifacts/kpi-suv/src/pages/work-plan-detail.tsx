@@ -1,1 +1,1925 @@
-import { useState, useEffect, useRef, useMemo } from \"react\";\nimport { QRCodeSVG } from \"qrcode.react\";\nimport { useParams, Link } from \"wouter\";\nimport * as XLSX from \"xlsx\";\nimport { useRegion } from \"@/lib/region-context\";\nimport { useForm } from \"react-hook-form\";\nimport { zodResolver } from \"@hookform/resolvers/zod\";\nimport * as z from \"zod\";\nimport {\n  CheckCircle2,\n  ChevronLeft,\n  MoreHorizontal,\n  Pencil,\n  Plus,\n  Send,\n  Trash2,\n  FileText,\n  Printer,\n  Download,\n} from \"lucide-react\";\nimport { MultiEmployeeSelect } from \"@/components/multi-employee-select\";\nimport { useQuery, useQueryClient } from \"@tanstack/react-query\";\n\nimport {\n  useGetWorkPlan,\n  getGetWorkPlanQueryKey,\n  useSubmitWorkPlan,\n  useApproveWorkPlan,\n  useCreateWorkPlanTask,\n  useUpdateWorkPlanTask,\n  useDeleteWorkPlanTask,\n  useGetMe,\n  getGetMeQueryKey,\n  useListEmployees,\n  getListEmployeesQueryKey,\n  customFetch,\n} from \"@workspace/api-client-react\";\n\nconst BASE = import.meta.env.BASE_URL.replace(/\\/$/, \"\");\n\nimport { Button } from \"@/components/ui/button\";\nimport { Card, CardContent } from \"@/components/ui/card\";\nimport { Badge } from \"@/components/ui/badge\";\nimport { Progress } from \"@/components/ui/progress\";\nimport { Input } from \"@/components/ui/input\";\nimport { Textarea } from \"@/components/ui/textarea\";\nimport { Skeleton } from \"@/components/ui/skeleton\";\nimport {\n  DropdownMenu,\n  DropdownMenuContent,\n  DropdownMenuItem,\n  DropdownMenuTrigger,\n} from \"@/components/ui/dropdown-menu\";\nimport {\n  Dialog,\n  DialogContent,\n  DialogFooter,\n  DialogHeader,\n  DialogTitle,\n} from \"@/components/ui/dialog\";\nimport {\n  Form,\n  FormControl,\n  FormField,\n  FormItem,\n  FormLabel,\n  FormMessage,\n} from \"@/components/ui/form\";\nimport {\n  Select,\n  SelectContent,\n  SelectItem,\n  SelectTrigger,\n  SelectValue,\n} from \"@/components/ui/select\";\nimport { useToast } from \"@/hooks/use-toast\";\nimport { useLang } from \"@/lib/lang-context\";\nimport { getUnitOptions } from \"@/lib/unit-options\";\n\n\nconst UNIT_OPTIONS_PLACEHOLDER = [\n  // Uzunlik\n  { value: \"mm\", label: \"mm — millimetr\" },\n  { value: \"sm\", label: \"sm — santimetr\" },\n  { value: \"m\", label: \"m — metr\" },\n  { value: \"km\", label: \"km — kilometr\" },\n  // Yuza\n  { value: \"m²\", label: \"m² — kvadrat metr\" },\n  { value: \"km²\", label: \"km² — kvadrat kilometr\" },\n  { value: \"ga\", label: \"ga — gektar\" },\n  // Hajm\n  { value: \"ml\", label: \"ml — millilitr\" },\n  { value: \"l\", label: \"l — litr\" },\n  { value: \"m³\", label: \"m³ — kub metr\" },\n  { value: \"ming m³\", label: \"ming m³\" },\n  { value: \"mln m³\", label: \"mln m³ — million kub metr\" },\n  // Oqim\n  { value: \"l/s\", label: \"l/s — litr/soniya\" },\n  { value: \"m³/s\", label: \"m³/s — kub metr/soniya\" },\n  { value: \"m³/soat\", label: \"m³/soat — kub metr/soat\" },\n  { value: \"m³/kun\", label: \"m³/kun — kub metr/kun\" },\n  // Massa\n  { value: \"g\", label: \"g — gramm\" },\n  { value: \"kg\", label: \"kg — kilogramm\" },\n  { value: \"t\", label: \"t — tonna\" },\n  { value: \"ming t\", label: \"ming t — ming tonna\" },\n  // Bosim / Temperatura\n  { value: \"atm\", label: \"atm — atmosfera\" },\n  { value: \"bar\", label: \"bar\" },\n  { value: \"MPa\", label: \"MPa — megapaskal\" },\n  { value: \"°C\", label: \"°C — daraja Selsiy\" },\n  // Elektr\n  { value: \"kVt\", label: \"kVt — kilovat\" },\n  { value: \"MVt\", label: \"MVt — megavat\" },\n  { value: \"kVt·soat\", label: \"kVt·soat — kilovatt-soat\" },\n  { value: \"MVt·soat\", label: \"MVt·soat — megavatt-soat\" },\n  // Sanoq\n  { value: \"dona\", label: \"dona\" },\n  { value: \"ta\", label: \"ta\" },\n  { value: \"nafar\", label: \"nafar — kishi\" },\n  { value: \"oila\", label: \"oila\" },\n  { value: \"uy-joy\", label: \"uy-joy\" },\n  { value: \"xonadon\", label: \"xonadon\" },\n  { value: \"abonent\", label: \"abonent\" },\n  { value: \"iste'molchi\", label: \"iste'molchi\" },\n  { value: \"tashkilot\", label: \"tashkilot\" },\n  { value: \"korxona\", label: \"korxona\" },\n  { value: \"manzil\", label: \"manzil\" },\n  { value: \"nuqta\", label: \"nuqta\" },\n  { value: \"quduq\", label: \"quduq\" },\n  { value: \"stansiya\", label: \"stansiya\" },\n  { value: \"inshoot\", label: \"inshoot\" },\n  { value: \"agregat\", label: \"agregat\" },\n  { value: \"nasos\", label: \"nasos\" },\n  { value: \"truba\", label: \"truba\" },\n  { value: \"kran\", label: \"kran\" },\n  { value: \"hisoblagich\", label: \"hisoblagich (schyotchik)\" },\n  // Vaqt\n  { value: \"daqiqa\", label: \"daqiqa\" },\n  { value: \"soat\", label: \"soat\" },\n  { value: \"kun\", label: \"kun\" },\n  { value: \"hafta\", label: \"hafta\" },\n  { value: \"oy\", label: \"oy\" },\n  { value: \"yil\", label: \"yil\" },\n  { value: \"marta\", label: \"marta\" },\n  { value: \"seans\", label: \"seans\" },\n  { value: \"muddat\", label: \"muddat\" },\n  // Hujjat / faoliyat\n  { value: \"loyiha\", label: \"loyiha\" },\n  { value: \"hujjat\", label: \"hujjat\" },\n  { value: \"tadbir\", label: \"tadbir\" },\n  { value: \"dastur\", label: \"dastur\" },\n  { value: \"shartnoma\", label: \"shartnoma\" },\n  { value: \"buyurtma\", label: \"buyurtma\" },\n  { value: \"ariza\", label: \"ariza\" },\n  { value: \"shikoyat\", label: \"shikoyat\" },\n  { value: \"tekshiruv\", label: \"tekshiruv\" },\n  { value: \"hisobot\", label: \"hisobot\" },\n  { value: \"yig'ilish\", label: \"yig'ilish\" },\n  { value: \"o'quv\", label: \"o'quv (trening)\" },\n  { value: \"ish o'rni\", label: \"ish o'rni\" },\n  // Moliyaviy\n  { value: \"so'm\", label: \"so'm\" },\n  { value: \"ming so'm\", label: \"ming so'm\" },\n  { value: \"mln so'm\", label: \"mln so'm — million so'm\" },\n  { value: \"mlrd so'm\", label: \"mlrd so'm — milliard so'm\" },\n  { value: \"USD\", label: \"USD — dollar\" },\n  // Foiz / nisbiy\n  { value: \"%\", label: \"% — foiz\" },\n  { value: \"ball\", label: \"ball\" },\n  { value: \"indeks\", label: \"indeks\" },\n  { value: \"koeffitsient\", label: \"koeffitsient\" },\n  // Boshqa\n  { value: \"—\", label: \"— (ko'rsatilmagan)\" },\n];\n\nconst STATUS_CLASS: Record<string, string> = {\n  draft:     \"bg-gray-100 text-gray-600 border-gray-200\",\n  submitted: \"bg-blue-100 text-blue-700 border-blue-200\",\n  approved:  \"bg-green-100 text-green-700 border-green-200\",\n  completed: \"bg-teal-100 text-teal-700 border-teal-200\",\n};\n\nconst TASK_STATUS_CLASS: Record<string, string> = {\n  pending:     \"bg-gray-100 text-gray-600\",\n  in_progress: \"bg-blue-100 text-blue-700\",\n  completed:   \"bg-green-100 text-green-700\",\n};\n\nfunction StatusBadge({ status }: { status: string }) {\n  const { t, d } = useLang();\n  const labelMap: Record<string, string> = {\n    draft:     t(\"status_draft\"),\n    submitted: t(\"status_submitted\"),\n    approved:  t(\"status_approved\"),\n    completed: t(\"status_completed\"),\n  };\n  return (\n    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_CLASS[status] ?? \"\"}`}>\n      {labelMap[status] ?? status}\n    </span>\n  );\n}\n\nfunction TaskStatusBadge({ status }: { status: string }) {\n  const { t, d } = useLang();\n  const labelMap: Record<string, string> = {\n    pending:     t(\"status_pending\"),\n    in_progress: t(\"status_in_progress\"),\n    completed:   t(\"status_completed\"),\n  };\n  return (\n    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${TASK_STATUS_CLASS[status] ?? \"\"}`}>\n      {labelMap[status] ?? status}\n    </span>\n  );\n}\n\nconst taskSchema = z.object({\n  isSection: z.boolean().default(false),\n  title: z.string().min(1, \"Sarlavhani kiriting\"),\n  implementationMechanism: z.string().optional(),\n  fundingSource: z.string().optional(),\n  unitOfMeasure: z.string().optional(),\n  plannedVolume: z.string().optional(),\n  actualVolume: z.string().optional(),\n  completionPercentage: z.coerce.number().min(0).max(100).default(0),\n  responsiblePerson: z.string().optional(),\n  location: z.string().optional(),\n  controller: z.string().optional(),\n  actualResult: z.string().optional(),\n  status: z.enum([\"pending\", \"in_progress\", \"completed\"]).default(\"pending\"),\n});\n\ntype TaskFormValues = z.infer<typeof taskSchema>;\n\nconst defaultValues: TaskFormValues = {\n  isSection: false,\n  title: \"\",\n  implementationMechanism: \"\",\n  fundingSource: \"\",\n  unitOfMeasure: \"\",\n  plannedVolume: \"\",\n  actualVolume: \"\",\n  completionPercentage: 0,\n  responsiblePerson: \"\",\n  location: \"\",\n  controller: \"\",\n  actualResult: \"\",\n  status: \"pending\",\n};\n\ntype TaskEdit = { actualVolume: string; pdfUrl: string | null; uploading: boolean; saving: boolean; approving: boolean; rejecting: boolean };\n\nexport default function WorkPlanDetail() {\n  const params = useParams();\n  const id = Number(params.id);\n  const { toast } = useToast();\n  const { lang, t, d } = useLang();\n  const queryClient = useQueryClient();\n  const { selectedTuman, selectedViloyat } = useRegion();\n  const UNIT_OPTIONS = useMemo(() => getUnitOptions(lang), [lang]);\n\n  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);\n  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);\n  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);\n  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);\n  const [rejectComment, setRejectComment] = useState(\"\");\n  const [isRejecting, setIsRejecting] = useState(false);\n  const [selectedTask, setSelectedTask] = useState<any>(null);\n  const [addingSection, setAddingSection] = useState(false);\n  const [approveComment, setApproveComment] = useState(\"\");\n  const [inlineEditTask, setInlineEditTask] = useState<any>(null);\n\n  const [progressEdits, setProgressEdits] = useState<Record<number, TaskEdit>>({});\n  const [ijroEdits, setIjroEdits] = useState<Record<number, { plannedVolume: string; actualVolume: string; ijroLate: string; ijroUnexecuted: string; saving: boolean }>>({});\n  const [mehnatEdits, setMehnatEdits] = useState<Record<number, { workHours: string; lateMinutes: string; lateDays: string; result: string; saving: boolean }>>({});\n  const [editingProgressIds, setEditingProgressIds] = useState<Set<number>>(new Set());\n  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});\n\n  const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });\n  const isAdminOrManager = user?.role === \"admin\" || user?.role === \"manager\";\n  const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;\n  const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;\n  const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;\n  const canEditMehnatTask = isAdminOrManager || isMehnatResponsibleUser;\n\n  const { data: mfylarData = [] } = useQuery({\n    queryKey: [\"mfylar\", selectedTuman],\n    queryFn: () => {\n      const params = selectedTuman ? `?tuman=${encodeURIComponent(selectedTuman)}` : \"\";\n      return customFetch<{ id: number; name: string }[]>(`${BASE}/api/mfylar${params}`);\n    },\n    staleTime: 0,\n  });\n  const locationOptions = mfylarData.map((m) => ({ value: m.name, label: m.name }));\n\n  const { data: departmentsData = [] } = useQuery({\n    queryKey: [\"departments\"],\n    queryFn: () => customFetch<{ id: number; name: string }[]>(`${BASE}/api/departments`),\n    staleTime: 60_000,\n  });\n\n  const { data: approverData } = useQuery({\n    queryKey: [\"approver\", selectedViloyat, selectedTuman],\n    queryFn: () => {\n      if (!selectedViloyat && !selectedTuman) return Promise.resolve({ fullName: null });\n      const p = new URLSearchParams();\n      if (selectedTuman) p.set(\"tuman\", selectedTuman);\n      if (selectedViloyat) p.set(\"viloyat\", selectedViloyat);\n      return customFetch<{ fullName: string | null }>(`${BASE}/api/employees/approver?${p.toString()}`);\n    },\n    staleTime: 0,\n  });\n  const approverName = approverData?.fullName ?? \"\";\n\n  const { data: employeesData } = useListEmployees(undefined, {\n    query: { queryKey: getListEmployeesQueryKey() },\n  });\n  const employeeOptions = ((employeesData as any[] | undefined) ?? []).map((e: any) => ({\n    value: e.fullName as string,\n    label: e.fullName as string,\n  }));\n\n  const { data: plan, isLoading } = useGetWorkPlan(id, {\n    query: { queryKey: getGetWorkPlanQueryKey(id), enabled: !!id },\n  });\n\n  const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetWorkPlanQueryKey(id) });\n\n  useEffect(() => {\n    if (!plan?.tasks) return;\n    setProgressEdits((prev) => {\n      const next = { ...prev };\n      for (const task of (plan.tasks ?? [])) {\n        if (!task.isSection && !(task.id in next)) {\n          next[task.id] = { actualVolume: task.actualVolume ?? \"\", pdfUrl: task.pdfUrl ?? null, uploading: false, saving: false, approving: false, rejecting: false };\n        }\n      }\n      return next;\n    });\n    setIjroEdits((prev) => {\n      const next = { ...prev };\n      for (const task of (plan.tasks ?? []) as any[]) {\n        if (task.category === \"ijro\" && !(task.id in next)) {\n          next[task.id] = {\n            plannedVolume: task.plannedVolume ?? \"\",\n            actualVolume: task.actualVolume ?? \"\",\n            ijroLate: task.ijroLate != null ? String(task.ijroLate) : \"\",\n            ijroUnexecuted: task.ijroUnexecuted != null ? String(task.ijroUnexecuted) : \"\",\n            saving: false,\n          };\n        }\n      }\n      return next;\n    });\n    setMehnatEdits((prev) => {\n      const next = { ...prev };\n      for (const task of (plan.tasks ?? []) as any[]) {\n        if (task.category === \"mehnat\" && !(task.id in next)) {\n          next[task.id] = {\n            workHours: task.mehnatWorkHours != null ? String(task.mehnatWorkHours) : \"\",\n            lateMinutes: task.mehnatLateMinutes != null ? String(task.mehnatLateMinutes) : \"\",\n            lateDays: task.mehnatLateDays != null ? String(task.mehnatLateDays) : \"\",\n            result: task.mehnatResult ?? \"\",\n            saving: false,\n          };\n        }\n      }\n      return next;\n    });\n  }, [plan?.tasks]);\n\n  const submitMutation = useSubmitWorkPlan({\n    mutation: { onSuccess: () => { invalidate(); toast({ title: \"Ish reja tasdiqlash uchun yuborildi\" }); } },\n  });\n  const approveMutation = useApproveWorkPlan({\n    mutation: {\n      onSuccess: () => {\n        invalidate();\n        setIsApproveDialogOpen(false);\n        toast({ title: \"Ish reja tasdiqlandi\" });\n      },\n    },\n  });\n  const createTaskMutation = useCreateWorkPlanTask({\n    mutation: { onSuccess: () => { invalidate(); setIsTaskDialogOpen(false); toast({ title: \"Qator qo'shildi\" }); } },\n  });\n  const updateTaskMutation = useUpdateWorkPlanTask({\n    mutation: { onSuccess: () => { invalidate(); setInlineEditTask(null); toast({ title: \"Qator yangilandi\" }); } },\n  });\n  const deleteTaskMutation = useDeleteWorkPlanTask({\n    mutation: { onSuccess: () => { invalidate(); setIsDeleteDialogOpen(false); toast({ title: \"Qator o'chirildi\" }); } },\n  });\n\n  const form = useForm<TaskFormValues>({ resolver: zodResolver(taskSchema), defaultValues });\n\n  const openCreate = (isSection = false) => {\n    setSelectedTask(null);\n    setAddingSection(isSection);\n    form.reset({ ...defaultValues, isSection, controller: approverName });\n    setIsTaskDialogOpen(true);\n  };\n\n  const openEdit = (task: any) => {\n    setInlineEditTask({\n      id: task.id,\n      isSection: task.isSection ?? false,\n      title: task.title ?? \"\",\n      implementationMechanism: task.implementationMechanism ?? \"\",\n      fundingSource: task.fundingSource ?? \"\",\n      unitOfMeasure: task.unitOfMeasure ?? \"\",\n      plannedVolume: String(task.plannedVolume ?? \"\"),\n      actualVolume: String(task.actualVolume ?? \"\"),\n      completionPercentage: task.completionPercentage ?? 0,\n      responsiblePerson: task.responsiblePerson ?? \"\",\n      location: task.location ?? \"\",\n      controller: task.controller ?? \"\",\n      actualResult: task.actualResult ?? \"\",\n      status: task.status ?? \"pending\",\n    });\n  };\n\n  const saveInlineEdit = async () => {\n    if (!inlineEditTask) return;\n    if (isLocked) {\n      // Tasdiqlangan/jo'natilgan rejalar uchun PATCH progress endpoint ishlatiladi\n      try {\n        await customFetch(`${BASE}/api/work-plans/${id}/tasks/${inlineEditTask.id}/progress`, {\n          method: \"PATCH\",\n          body: JSON.stringify({\n            actualVolume: inlineEditTask.actualVolume || null,\n            completionPercentage: Number(inlineEditTask.completionPercentage) || 0,\n            status: inlineEditTask.status ?? \"pending\",\n            actualResult: inlineEditTask.actualResult || null,\n          }),\n          headers: { \"Content-Type\": \"application/json\" },\n        } as any);\n        invalidate();\n        setInlineEditTask(null);\n        toast({ title: \"Qator yangilandi\" });\n      } catch {\n        toast({ title: \"Xatolik yuz berdi\", variant: \"destructive\" });\n      }\n    } else {\n      updateTaskMutation.mutate({\n        id,\n        taskId: inlineEditTask.id,\n        data: {\n          isSection: inlineEditTask.isSection,\n          title: inlineEditTask.title,\n          implementationMechanism: inlineEditTask.implementationMechanism || null,\n          fundingSource: inlineEditTask.fundingSource || null,\n          unitOfMeasure: inlineEditTask.unitOfMeasure || null,\n          plannedVolume: inlineEditTask.plannedVolume || null,\n          actualVolume: inlineEditTask.actualVolume || null,\n          completionPercentage: Number(inlineEditTask.completionPercentage) || 0,\n          responsiblePerson: inlineEditTask.responsiblePerson || null,\n          location: inlineEditTask.location || null,\n          controller: inlineEditTask.controller || null,\n          actualResult: inlineEditTask.actualResult || null,\n          status: inlineEditTask.status ?? \"pending\",\n        } as any,\n      });\n    }\n  };\n\n  const onSubmitTask = (data: TaskFormValues) => {\n    createTaskMutation.mutate({ id, data: data as any });\n  };\n\n  const downloadExcel = () => {\n    if (!plan) return;\n    const rows: any[] = [];\n    let counter = 0;\n    for (const task of (plan.tasks ?? [])) {\n      if (task.isSection) {\n        rows.push({ \"№\": \"\", \"Chora-tadbirlar\": task.title, \"Amalga oshirish mexanizmi\": \"\", \"Moliyalashtirish manbalari\": \"\", \"O'lchov birligi\": \"\", \"Reja\": \"\", \"Amalda\": \"\", \"Bajarilishi %\": \"\", \"Birgalikda bajaradigan ijrochi\": \"\", \"Hudud\": \"\", \"Tasdiqlovchi\": \"\", \"Holati\": \"\" });\n      } else {\n        counter++;\n        rows.push({\n          \"№\": counter,\n          \"Chora-tadbirlar\": task.title ?? \"\",\n          \"Amalga oshirish mexanizmi\": task.implementationMechanism ?? \"\",\n          \"Moliyalashtirish manbalari\": task.fundingSource ?? \"\",\n          \"O'lchov birligi\": task.unitOfMeasure ?? \"\",\n          \"Reja\": task.plannedVolume ?? \"\",\n          \"Amalda\": task.actualVolume ?? \"\",\n          \"Bajarilishi %\": task.completionPercentage ?? 0,\n          \"Birgalikda bajaradigan ijrochi\": task.responsiblePerson ?? \"\",\n          \"Hudud\": task.location ?? \"\",\n          \"Tasdiqlovchi\": task.controller ?? \"\",\n          \"Holati\": task.status === \"completed\" ? t(\"wp_completed\") : task.status === \"in_progress\" ? t(\"wp_in_progress\") : t(\"wp_pending\"),\n        });\n      }\n    }\n    const ws = XLSX.utils.json_to_sheet(rows);\n    const wb = XLSX.utils.book_new();\n    XLSX.utils.book_append_sheet(wb, ws, \"Chora-tadbirlar\");\n    const fileName = `${plan.employeeName ?? \"ish-reja\"}_${plan.period ?? \"\"}.xlsx`.replace(/\\s+/g, \"_\");\n    XLSX.writeFile(wb, fileName);\n  };\n\n  const downloadPdf = async () => {\n    if (!plan) return;\n    const { jsPDF } = await import(\"jspdf\");\n    const { default: autoTable } = await import(\"jspdf-autotable\");\n    const QRCode = (await import(\"qrcode\")).default;\n\n    const doc = new jsPDF({ orientation: \"landscape\", unit: \"mm\", format: \"a4\" });\n    const pageW = doc.internal.pageSize.getWidth();\n    const margin = 12;\n    let y = margin;\n\n    doc.setTextColor(0, 0, 0);\n\n    const txt = (text: string, x: number, yy: number, opts?: any) => {\n      doc.text(text || \"\", x, yy, opts);\n    };\n    const pad2 = (n: number) => String(n).padStart(2, \"0\");\n    const fmtDate = (val: string | null | undefined) => {\n      if (!val) return \"\";\n      const d = new Date(val);\n      return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;\n    };\n\n    /* ── QR kod (o'ng yuqori burchak) ── */\n    const qrSize = 34;\n    const qrX = pageW - margin - qrSize;\n    const qrY = margin;\n    try {\n      const planUrl = `${window.location.origin}/work-plans/${id}`;\n      const qrDataUrl = await QRCode.toDataURL(planUrl, { width: 256, margin: 1, color: { dark: \"#000000\", light: \"#ffffff\" } });\n      doc.addImage(qrDataUrl, \"PNG\", qrX, qrY, qrSize, qrSize);\n      doc.setFontSize(7);\n      doc.setFont(\"helvetica\", \"normal\");\n      txt(\"Elektron ish reja\", qrX + qrSize / 2, qrY + qrSize + 4, { align: \"center\" });\n    } catch (_) {}\n\n    /* ── 1. KELISHILDI / TASDIQLANDI stamp bloki ── */\n    const stampGap = 8;\n    const stampAreaW = qrX - margin - stampGap;\n    const stampW = (stampAreaW - stampGap) / 2;\n    const stampH = 36;\n    const lineH = 6.5;\n\n    const drawStamp = (label: string, position: string | undefined, name: string, dateStr: string, sx: number) => {\n      doc.setDrawColor(60, 60, 60);\n      doc.setLineWidth(0.5);\n      doc.rect(sx, y, stampW, stampH);\n\n      // header fill\n      doc.setFillColor(240, 242, 246);\n      doc.rect(sx, y, stampW, 10, \"F\");\n\n      doc.setFont(\"helvetica\", \"bold\");\n      doc.setFontSize(10);\n      doc.setTextColor(0, 0, 0);\n      txt(label, sx + stampW / 2, y + 7, { align: \"center\" });\n\n      doc.setLineWidth(0.3);\n      doc.setDrawColor(120, 120, 120);\n      doc.line(sx, y + 10, sx + stampW, y + 10);\n\n      doc.setFont(\"helvetica\", \"normal\");\n      doc.setFontSize(9);\n\n      let iy = y + 10 + lineH;\n      if (position) {\n        const posLines: string[] = doc.splitTextToSize(position, stampW - 8);\n        doc.text(posLines, sx + 5, iy);\n        iy += posLines.length * lineH;\n      }\n      if (name) {\n        doc.setFont(\"helvetica\", \"bold\");\n        doc.setFontSize(9.5);\n        const nameLines: string[] = doc.splitTextToSize(name, stampW - 8);\n        doc.text(nameLines, sx + 5, iy);\n        doc.setFont(\"helvetica\", \"normal\");\n        iy += nameLines.length * lineH;\n      }\n      if (dateStr) {\n        doc.setFontSize(9);\n        txt(dateStr, sx + 5, iy);\n      }\n    };\n\n    drawStamp(\n      \"KELISHILDI\",\n      (plan as any).employeePosition,\n      plan.employeeName ?? \"\",\n      fmtDate(plan.createdAt ?? null),\n      margin,\n    );\n\n    const stampX2 = margin + stampW + stampGap;\n    if (plan.approvedByName) {\n      drawStamp(\n        \"TASDIQLANDI\",\n        (plan as any).approvedByPosition,\n        plan.approvedByName,\n        fmtDate((plan as any).approvedAt ?? null),\n        stampX2,\n      );\n    } else {\n      doc.setDrawColor(60, 60, 60);\n      doc.setLineWidth(0.5);\n      doc.rect(stampX2, y, stampW, stampH);\n      doc.setFillColor(240, 242, 246);\n      doc.rect(stampX2, y, stampW, 10, \"F\");\n      doc.setFont(\"helvetica\", \"bold\");\n      doc.setFontSize(10);\n      doc.setTextColor(0, 0, 0);\n      txt(\"TASDIQLANDI\", stampX2 + stampW / 2, y + 7, { align: \"center\" });\n      doc.setLineWidth(0.3);\n      doc.setDrawColor(120, 120, 120);\n      doc.line(stampX2, y + 10, stampX2 + stampW, y + 10);\n      doc.setFont(\"helvetica\", \"normal\");\n      doc.setFontSize(9);\n      txt(\"Tasdiqlanmagan\", stampX2 + 5, y + 10 + lineH);\n    }\n\n    y += stampH + 8;\n\n    /* ── 2. Sarlavha ── */\n    doc.setTextColor(0, 0, 0);\n    doc.setFont(\"helvetica\", \"bold\");\n    doc.setFontSize(13);\n    const titleLines = doc.splitTextToSize(plan.title ?? \"Ish reja\", pageW - margin * 2 - 4);\n    doc.text(titleLines, pageW / 2, y, { align: \"center\" });\n    y += titleLines.length * 7 + 2;\n\n    doc.setFont(\"helvetica\", \"normal\");\n    doc.setFontSize(9.5);\n    const subParts = [plan.employeeName, plan.departmentName, plan.period ? `Davr: ${plan.period}` : null].filter(Boolean);\n    txt(subParts.join(\"  \\u2022  \"), pageW / 2, y, { align: \"center\" });\n    y += 7;\n\n    /* ── 3. Statistika satri ── */\n    doc.setDrawColor(180, 180, 180);\n    doc.setLineWidth(0.3);\n    doc.line(margin, y, pageW - margin, y);\n    y += 5;\n\n    doc.setFontSize(9);\n    doc.setFont(\"helvetica\", \"normal\");\n    const realCount = (plan.tasks ?? []).filter((t: any) => !t.isSection).length;\n    const doneCount = (plan.tasks ?? []).filter((t: any) => !t.isSection && t.status === \"completed\").length;\n    const pct = Math.round(plan.overallProgress ?? 0);\n    doc.setFont(\"helvetica\", \"bold\");\n    txt(\"Jami vazifa:\", margin, y);\n    doc.setFont(\"helvetica\", \"normal\");\n    txt(`${realCount}`, margin + 26, y);\n    doc.setFont(\"helvetica\", \"bold\");\n    txt(\"Bajarildi:\", margin + 40, y);\n    doc.setFont(\"helvetica\", \"normal\");\n    txt(`${doneCount}/${realCount}`, margin + 58, y);\n    doc.setFont(\"helvetica\", \"bold\");\n    txt(\"Bajarilishi:\", margin + 80, y);\n    doc.setFont(\"helvetica\", \"normal\");\n    txt(`${pct}%`, margin + 101, y);\n    y += 6;\n\n    /* ── 4. Jadval ── */\n    const head = [[\"#\", \"Chora-tadbirlar\", \"Mexanizm\", \"Moliya\", \"Birlik\", \"Reja\", \"Amalda\", \"%\", \"Hudud\", \"Tasdiqlovchi\", \"Holati\"]];\n    const body: any[] = [];\n    let counter = 0;\n    for (const task of (plan.tasks ?? [])) {\n      if ((task as any).isSection) {\n        body.push([{ content: (task as any).title ?? \"\", colSpan: 11, styles: { fontStyle: \"bold\", fontSize: 9, fillColor: [237, 241, 248], textColor: [0, 0, 0] } }]);\n      } else {\n        counter++;\n        const statusLabel = (task as any).status === \"completed\" ? \"Bajarildi\" : (task as any).status === \"in_progress\" ? \"Jarayonda\" : \"Kutilmoqda\";\n        body.push([\n          counter,\n          (task as any).title ?? \"\",\n          (task as any).implementationMechanism ?? \"\",\n          (task as any).fundingSource ?? \"\",\n          (task as any).unitOfMeasure ?? \"\",\n          (task as any).plannedVolume ?? \"\",\n          (task as any).actualVolume ?? \"\",\n          `${(task as any).completionPercentage ?? 0}%`,\n          (task as any).location ?? \"\",\n          (task as any).controller ?? \"\",\n          statusLabel,\n        ]);\n      }\n    }\n\n    autoTable(doc, {\n      startY: y,\n      head,\n      body,\n      styles: { fontSize: 8.5, cellPadding: 2.5, overflow: \"linebreak\", textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.25 },\n      headStyles: { fillColor: [30, 64, 175], textColor: [255, 255, 255], fontStyle: \"bold\", fontSize: 9, cellPadding: 3 },\n      alternateRowStyles: { fillColor: [248, 250, 255] },\n      columnStyles: {\n        0: { cellWidth: 9, halign: \"center\" },\n        1: { cellWidth: 54 },\n        2: { cellWidth: 38 },\n        7: { cellWidth: 11, halign: \"center\" },\n        10: { cellWidth: 20, halign: \"center\" },\n      },\n      tableLineColor: [160, 160, 160],\n      tableLineWidth: 0.3,\n    });\n\n    const fileName = `${plan.employeeName ?? \"ish-reja\"}_${plan.period ?? \"\"}.pdf`.replace(/\\s+/g, \"_\");\n    doc.save(fileName);\n  };\n\n  if (isLoading) {\n    return (\n      <div className=\"space-y-4\">\n        <Skeleton className=\"h-10 w-[280px]\" />\n        <Skeleton className=\"h-[100px] w-full\" />\n        <Skeleton className=\"h-[400px] w-full\" />\n      </div>\n    );\n  }\n\n  if (!plan) {\n    return (\n      <div className=\"flex flex-col items-center justify-center h-[50vh] space-y-4\">\n        <FileText className=\"h-12 w-12 text-muted-foreground/30\" />\n        <h2 className=\"text-lg font-semibold\">Ish reja topilmadi</h2>\n        <Link href=\"/work-plans\" className=\"text-sm text-primary hover:underline flex items-center gap-1\">\n          <ChevronLeft className=\"h-4 w-4\" />Ro'yxatga qaytish\n        </Link>\n      </div>\n    );\n  }\n\n  const isLocked = plan.status !== \"draft\" && plan.status !== \"rejected\";\n  const realTasks = (plan.tasks ?? []).filter((t: any) => !t.isSection);\n  let taskCounter = 0;\n\n  const calcPct = (taskId: number, actualStr?: string) => {\n    const task = plan.tasks?.find((t: any) => t.id === taskId);\n    const planned = parseFloat(task?.plannedVolume ?? \"0\");\n    const actual = parseFloat(actualStr ?? progressEdits[taskId]?.actualVolume ?? \"0\");\n    if (!isNaN(planned) && planned > 0 && !isNaN(actual) && actual >= 0) {\n      return Math.min(100, Math.round((actual / planned) * 100));\n    }\n    return null;\n  };\n\n  const saveProgress = async (taskId: number) => {\n    const edit = progressEdits[taskId];\n    if (!edit) return;\n    // PDF mandatory check: when actualVolume is being entered, a PDF must exist\n    if (edit.actualVolume && edit.actualVolume.trim() !== \"\") {\n      const task = plan?.tasks?.find((t: any) => t.id === taskId);\n      const hasPdf = !!edit.pdfUrl || !!task?.pdfUrl;\n      if (!hasPdf && !isAdminOrManager) {\n        toast({\n          title: \"PDF fayl yuklash majburiy\",\n          description: \"Avval tasdiqlovchi PDF faylni yuklang, keyin saqlang\",\n          variant: \"destructive\",\n        });\n        return;\n      }\n    }\n    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));\n    try {\n      const body: Record<string, unknown> = { actualVolume: edit.actualVolume || null };\n      if (edit.pdfUrl) body.pdfUrl = edit.pdfUrl;\n      // Foiz (completionPercentage) FAQAT admin tasdig'idan keyin hisoblanadi.\n      // Foydalanuvchi saqlasa — foiz 0'ga reset bo'ladi, status \"kutilmoqda\".\n      // Admin tasdiqlaganida (approveTask) actualVolume/plannedVolume bo'yicha foiz hisoblanadi.\n      if (isAdminOrManager) {\n        // Admin xohlasa, frontend hisobini saqlasin (qulaylik uchun)\n        const pct = calcPct(taskId, edit.actualVolume);\n        if (pct !== null) {\n          body.completionPercentage = pct;\n          body.status = pct > 0 ? \"in_progress\" : \"pending\";\n        }\n      } else {\n        // Oddiy xodim saqlaganida — har safar qayta tasdiqlash zarur\n        body.completionPercentage = 0;\n        body.status = \"pending\";\n      }\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify(body),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({\n        title: \"Saqlandi\",\n        description: isAdminOrManager ? undefined : \"Admin tasdig'i kutilmoqda\",\n      });\n      setEditingProgressIds((prev) => {\n        const next = new Set(prev);\n        next.delete(taskId);\n        return next;\n      });\n    } catch {\n      toast({ title: \"Xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));\n    }\n  };\n\n  const saveIjroProgress = async (taskId: number) => {\n    const edit = ijroEdits[taskId];\n    if (!edit) return;\n    setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));\n    try {\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify({\n          plannedVolume: edit.plannedVolume || null,\n          actualVolume: edit.actualVolume || null,\n          ijroLate: edit.ijroLate ? parseInt(edit.ijroLate) : null,\n          ijroUnexecuted: edit.ijroUnexecuted ? parseInt(edit.ijroUnexecuted) : null,\n        }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({\n        title: \"Saqlandi\",\n        description: isAdminOrManager ? undefined : \"Admin tasdig'i kutilmoqda\",\n      });\n    } catch {\n      toast({ title: \"Xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));\n    }\n  };\n\n  const saveMehnatProgress = async (taskId: number) => {\n    const edit = mehnatEdits[taskId];\n    if (!edit) return;\n    setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));\n    try {\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify({\n          mehnatWorkHours:   edit.workHours   ? parseInt(edit.workHours)   : null,\n          mehnatLateMinutes: edit.lateMinutes ? parseInt(edit.lateMinutes) : null,\n          mehnatLateDays:    edit.lateDays    ? parseInt(edit.lateDays)    : null,\n          mehnatResult:      edit.result || null,\n        }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({ title: \"Saqlandi\" });\n    } catch {\n      toast({ title: \"Xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));\n    }\n  };\n\n  const uploadPdf = async (taskId: number, file: File) => {\n    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: true } }));\n    try {\n      const formData = new FormData();\n      formData.append(\"pdf\", file);\n      const res = await fetch(`${BASE}/api/work-plans/upload-pdf`, { method: \"POST\", body: formData, credentials: \"include\" });\n      if (!res.ok) throw new Error(\"Upload failed\");\n      const data = (await res.json()) as { url: string };\n      const pdfUrl = data.url;\n      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], pdfUrl, uploading: false } }));\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify({ actualVolume: progressEdits[taskId]?.actualVolume || null, pdfUrl }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({ title: \"PDF yuklandi va saqlandi\" });\n    } catch {\n      toast({ title: \"PDF yuklashda xatolik\", variant: \"destructive\" });\n      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: false } }));\n    }\n  };\n\n  const approveTask = async (taskId: number) => {\n    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], approving: true } }));\n    try {\n      // Tasdiqlash payti foizni real qiymatlar bo'yicha hisoblash:\n      // foiz = bajarilgan / reja * 100 (0–100 oralig'ida)\n      const task = plan?.tasks?.find((t: any) => t.id === taskId);\n      const planned = parseFloat((task as any)?.plannedVolume ?? \"0\");\n      const actual = parseFloat((task as any)?.actualVolume ?? \"0\");\n      let pct = 100;\n      if (!isNaN(planned) && planned > 0 && !isNaN(actual) && actual >= 0) {\n        pct = Math.min(100, Math.max(0, Math.round((actual / planned) * 100)));\n      }\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify({ status: \"completed\", completionPercentage: pct }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({ title: `Vazifa tasdiqlandi (${pct}%)` });\n    } catch {\n      toast({ title: \"Tasdiqlashda xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], approving: false } }));\n    }\n  };\n\n  const rejectTask = async (taskId: number) => {\n    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], rejecting: true } }));\n    try {\n      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {\n        method: \"PATCH\",\n        body: JSON.stringify({ status: \"in_progress\", completionPercentage: 0, pdfUrl: null }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      toast({ title: \"Vazifa rad qilindi\", description: \"Xodim qayta topshirishi kerak\" });\n    } catch {\n      toast({ title: \"Rad qilishda xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], rejecting: false } }));\n    }\n  };\n\n  const rejectPlan = async () => {\n    setIsRejecting(true);\n    try {\n      await customFetch(`${BASE}/api/approve/work-plans/${id}`, {\n        method: \"PUT\",\n        body: JSON.stringify({ action: \"reject\", comment: rejectComment }),\n        headers: { \"Content-Type\": \"application/json\" },\n      } as any);\n      invalidate();\n      setIsRejectDialogOpen(false);\n      setRejectComment(\"\");\n      toast({ title: \"Ish reja rad qilindi\", description: rejectComment || undefined });\n    } catch {\n      toast({ title: \"Rad qilishda xatolik yuz berdi\", variant: \"destructive\" });\n    } finally {\n      setIsRejecting(false);\n    }\n  };\n\n  return (\n    <div className=\"space-y-5 pb-12\">\n      {/* Top actions bar — like samaradorlik.uz */}\n      <div className=\"flex flex-wrap items-center justify-between gap-3\">\n        <div className=\"flex items-center gap-2\">\n          <Link href=\"/work-plans\" className=\"text-muted-foreground hover:text-foreground\">\n            <ChevronLeft className=\"h-5 w-5\" />\n          </Link>\n          <div className=\"flex items-center gap-2 flex-wrap\">\n            <span className=\"text-sm text-muted-foreground\">Bosh sahifa</span>\n            <span className=\"text-muted-foreground/50\">›</span>\n            <Link href=\"/work-plans\" className=\"text-sm text-muted-foreground hover:text-primary\">Ish rejalar</Link>\n            <span className=\"text-muted-foreground/50\">›</span>\n            <span className=\"text-sm font-medium truncate max-w-[300px]\">{d(plan.employeeName)}</span>\n            <StatusBadge status={plan.status} />\n          </div>\n        </div>\n        <div className=\"flex items-center gap-2\">\n          <Button variant=\"outline\" size=\"sm\" onClick={() => window.print()} className=\"h-8 text-xs gap-1.5\">\n            <Printer className=\"h-3.5 w-3.5\" />\n            Chop etish\n          </Button>\n          <DropdownMenu>\n            <DropdownMenuTrigger asChild>\n              <Button size=\"sm\" variant=\"outline\" className=\"h-8 text-xs gap-1.5\">\n                <Download className=\"h-3.5 w-3.5\" />\n                Yuklab olish\n              </Button>\n            </DropdownMenuTrigger>\n            <DropdownMenuContent align=\"end\">\n              <DropdownMenuItem onClick={downloadExcel}>\n                <FileText className=\"h-3.5 w-3.5 mr-2 text-green-600\" />\n                Elektron (Excel)\n              </DropdownMenuItem>\n              <DropdownMenuItem onClick={downloadPdf}>\n                <FileText className=\"h-3.5 w-3.5 mr-2 text-red-500\" />\n                PDF shaklida\n              </DropdownMenuItem>\n            </DropdownMenuContent>\n          </DropdownMenu>\n          {(plan.status === \"draft\" || plan.status === \"rejected\") && (\n            <Button size=\"sm\" onClick={() => submitMutation.mutate({ id })} disabled={submitMutation.isPending} className={`h-8 text-xs ${plan.status === \"rejected\" ? \"bg-blue-600 hover:bg-blue-700 text-white\" : \"\"}`}>\n              <Send className=\"h-3.5 w-3.5 mr-1.5\" />\n              {submitMutation.isPending ? \"Yuborilmoqda...\" : plan.status === \"rejected\" ? \"Qayta yuborish\" : \"Yuborish\"}\n            </Button>\n          )}\n          {plan.status === \"submitted\" && isAdminOrManager && (\n            <>\n              <Button size=\"sm\" variant=\"outline\" onClick={() => setIsRejectDialogOpen(true)} className=\"h-8 text-xs border-red-300 text-red-600 hover:bg-red-50\">\n                <Trash2 className=\"h-3.5 w-3.5 mr-1.5\" />\n                Rad qilish\n              </Button>\n              <Button size=\"sm\" onClick={() => setIsApproveDialogOpen(true)} className=\"h-8 text-xs bg-green-600 hover:bg-green-700\">\n                <CheckCircle2 className=\"h-3.5 w-3.5 mr-1.5\" />\n                Tasdiqlash\n              </Button>\n            </>\n          )}\n        </div>\n      </div>\n\n      {/* Plan header card — merged with table */}\n      <div className=\"rounded-xl border bg-card shadow-sm overflow-hidden\">\n        {/* Approval stamps row */}\n        <div className={`grid border-b ${(plan.status === \"approved\" || plan.status === \"completed\") ? \"grid-cols-3\" : \"grid-cols-2\"}`}>\n          {(plan.status === \"approved\" || plan.status === \"completed\") && (\n            <div className=\"p-4 border-r flex flex-col items-center justify-center\">\n              <QRCodeSVG\n                value={`${window.location.origin}/work-plans/${id}`}\n                size={90}\n                level=\"M\"\n                includeMargin={false}\n              />\n              <p className=\"text-[10px] text-muted-foreground mt-1 text-center\">Tasdiqlangan</p>\n            </div>\n          )}\n          <div className=\"p-4 border-r\">\n            <div className=\"text-xs font-bold uppercase text-muted-foreground mb-1\">Kelishildi</div>\n            {plan.status === \"approved\" || plan.status === \"completed\" ? (\n              <div className=\"text-sm\">\n                {(plan as any).employeePosition && (\n                  <div className=\"text-xs text-muted-foreground mb-0.5 italic\">{(plan as any).employeePosition}</div>\n                )}\n                <div className=\"font-medium\">{d(plan.employeeName)}</div>\n                <div className=\"text-xs text-muted-foreground mt-0.5\">{plan.createdAt?.slice(0, 10)}</div>\n              </div>\n            ) : (\n              <div className=\"text-xs text-muted-foreground italic\">Imzosini kutmoqda...</div>\n            )}\n          </div>\n          <div className=\"p-4\">\n            <div className=\"text-xs font-bold uppercase text-muted-foreground mb-1\">Tasdiqlandi</div>\n            {(plan.status === \"approved\" || plan.status === \"completed\") && plan.approvedByName ? (\n              <div className=\"text-sm\">\n                {(plan as any).approvedByPosition && (\n                  <div className=\"text-xs text-muted-foreground mb-0.5 italic\">{(plan as any).approvedByPosition}</div>\n                )}\n                <div className=\"font-medium text-green-700\">{d(plan.approvedByName)}</div>\n                {(plan as any).approvedAt && (() => {\n                  const d = new Date((plan as any).approvedAt);\n                  const pad = (n: number) => String(n).padStart(2, \"0\");\n                  return (\n                    <div className=\"text-xs text-muted-foreground mt-0.5 font-medium\">\n                      {pad(d.getDate())}.{pad(d.getMonth() + 1)}.{d.getFullYear()} {pad(d.getHours())}:{pad(d.getMinutes())}\n                    </div>\n                  );\n                })()}\n                {plan.approveComment && (\n                  <div className=\"text-xs text-muted-foreground mt-0.5 italic\">\"{d(plan.approveComment)}\"</div>\n                )}\n              </div>\n            ) : plan.status === \"rejected\" ? (\n              <div className=\"text-sm\">\n                <div className=\"font-medium text-red-600\">Rad etildi</div>\n                {plan.approveComment && (\n                  <div className=\"text-xs text-red-500 mt-0.5 italic\">\"{d(plan.approveComment)}\"</div>\n                )}\n              </div>\n            ) : (\n              <div className=\"text-xs text-muted-foreground italic\">Tasdiqlanmagan</div>\n            )}\n          </div>\n        </div>\n\n        {/* Plan title and info */}\n        <div className=\"p-5 text-center border-b bg-muted/20\">\n          <h1 className=\"font-bold text-base leading-snug\">{d(plan.title)}</h1>\n          <div className=\"flex justify-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2\">\n            <span>{d(plan.employeeName)}</span>\n            <span>•</span>\n            <span>{d(plan.departmentName)}</span>\n            <span>•</span>\n            <span>Davr: {plan.period}</span>\n          </div>\n        </div>\n\n        {/* Stats */}\n        <div className=\"px-5 py-3 flex items-center justify-between text-sm border-b\">\n          <div className=\"text-muted-foreground\">\n            Umumiy ma'lumotlar: <span className=\"font-medium text-foreground\">{realTasks.length} ta vazifa mavjud</span>\n          </div>\n          <div className=\"flex items-center gap-3\">\n            <span className=\"text-muted-foreground\">Bajarilishi:</span>\n            <span className=\"font-semibold\">\n              {plan.completedTaskCount}/{plan.taskCount}\n            </span>\n            <Progress value={plan.overallProgress} className=\"h-2 w-[100px]\" />\n            <span className=\"font-bold text-primary\">{Math.round(plan.overallProgress ?? 0)}%</span>\n          </div>\n        </div>\n\n        {/* Rejected notice — inside card */}\n        {plan.status === \"rejected\" && (\n          <div className=\"mx-5 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3 text-sm text-red-800\">\n            <span className=\"text-lg mt-0.5\">❌</span>\n            <div>\n              <div className=\"font-semibold mb-0.5\">Ish reja rad etildi</div>\n              {plan.approveComment && (\n                <div className=\"text-red-700\">Sabab: <span className=\"font-medium\">{d(plan.approveComment)}</span></div>\n              )}\n              <div className=\"text-red-600 mt-1 text-xs\">Tahrirlang va qayta imzoga yuboring.</div>\n            </div>\n          </div>\n        )}\n\n        {/* Main table header */}\n        <div className=\"px-5 py-3 border-b bg-primary/5 flex items-center justify-between\">\n          <span className=\"font-semibold text-sm text-primary\">Chora-tadbirlar jadvali</span>\n          <div className=\"flex gap-2\">\n            {!isLocked && (\n              <Button size=\"sm\" variant=\"outline\" className=\"h-7 text-xs px-3\" onClick={() => openCreate(false)}>\n                <Plus className=\"h-3.5 w-3.5 mr-1.5\" />\n                Vazifa qo'shish\n              </Button>\n            )}\n          </div>\n        </div>\n\n        {plan.tasks?.length === 0 ? (\n          <div className=\"py-14 text-center text-muted-foreground text-sm\">\n            Hali vazifalar qo'shilmagan\n          </div>\n        ) : (\n          <div className=\"overflow-x-auto\">\n            <table className=\"w-full text-xs border-collapse\" style={{ minWidth: 1200 }}>\n              <thead>\n                <tr className=\"bg-[#1565C0] text-white\">\n                  <th className=\"w-8 px-2 py-2.5 text-center border-r border-blue-400\">№</th>\n                  <th className=\"min-w-[260px] px-2 py-2.5 text-left border-r border-blue-400\">Chora-tadbirlar</th>\n                  <th className=\"min-w-[140px] px-2 py-2.5 text-left border-r border-blue-400\">Amalga oshirish mexanizmi</th>\n                  <th className=\"min-w-[100px] px-2 py-2.5 text-left border-r border-blue-400\">Moliyalashtirish manbalari</th>\n                  <th className=\"min-w-[130px] px-2 py-2.5 text-center border-r border-blue-400\">Birgalikda bajaradigan ijrochi</th>\n                  <th className=\"min-w-[70px] px-2 py-2.5 text-center border-r border-blue-400\">O'lchov birligi</th>\n                  <th className=\"min-w-[55px] px-2 py-2.5 text-center border-r border-blue-400\">Reja</th>\n                  <th className=\"min-w-[55px] px-2 py-2.5 text-center border-r border-blue-400\">Amalda</th>\n                  <th className=\"min-w-[65px] px-2 py-2.5 text-center border-r border-blue-400\">Bajarlishi%</th>\n                  <th className=\"min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400\">Hudud</th>\n                  <th className=\"min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400\">Tasdiqlovchi</th>\n                  <th className=\"min-w-[80px] px-2 py-2.5 text-center border-r border-blue-400\">Holati</th>\n                  {isLocked\n                    ? <th className=\"min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400\">Amalda (kiritish)</th>\n                    : <th className=\"w-8 px-2 py-2.5 text-center\">Amal</th>}\n                  {isLocked && <th className=\"min-w-[90px] px-2 py-2.5 text-center border-blue-400\">PDF hujjat</th>}\n                </tr>\n              </thead>\n              <tbody>\n                {plan.tasks?.map((task: any) => {\n                  const isSection = task.isSection;\n                  if (!isSection) taskCounter++;\n                  const rowNum = isSection ? null : taskCounter;\n                  const isInlineEditing = inlineEditTask?.id === task.id;\n                  const inp = \"w-full border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-800\";\n                  const sel = \"w-full border rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400\";\n                  const setIE = (field: string, val: any) => setInlineEditTask((prev: any) => ({ ...prev, [field]: val }));\n\n                  // ── Maxsus ijro/mehnat intizomi qatori (yonma-yon) ──────\n                  const ijroTaskAll = plan.tasks?.find((t: any) => t.category === \"ijro\");\n                  const mehnatTaskAll = plan.tasks?.find((t: any) => t.category === \"mehnat\");\n                  // Agar mehnat alohida render bo'lsa va ijro mavjud bo'lsa — uni o'tkazib yuboramiz (ijro qatorida ko'rsatilgan).\n                  if (task.category === \"mehnat\" && ijroTaskAll) return null;\n\n                  if (task.category === \"ijro\" || task.category === \"mehnat\") {\n                    const totalCols = isLocked ? 13 : 12;\n\n                    // Ijro bloki\n                    const ijroBlock = ijroTaskAll ? (() => {\n                      const e = ijroEdits[ijroTaskAll.id] ?? { plannedVolume: \"\", actualVolume: \"\", ijroLate: \"\", ijroUnexecuted: \"\", saving: false };\n                      const setIJ = (field: string, val: string) =>\n                        setIjroEdits((p) => ({ ...p, [ijroTaskAll.id]: { ...(p[ijroTaskAll.id] ?? e), [field]: val } }));\n                      const planned = parseFloat(e.plannedVolume || \"0\");\n                      const actual = parseFloat(e.actualVolume || \"0\");\n                      const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;\n                      const ijroDisabled = !canEditIjroTask;\n                      const inpCls = \"w-20 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed\";\n                      return (\n                        <div className=\"space-y-2\">\n                          <div className=\"flex items-center gap-2 flex-wrap\">\n                            <span className=\"text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide\">Ijro intizomi</span>\n                            <span className=\"text-xs font-medium text-gray-800 dark:text-gray-200\">\n                              Ijro.gov xat-hujjatlar\n                            </span>\n                            {ijroDisabled ? (\n                              <span className=\"text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded\">\n                                🔒 Faqat Ijro.gov mas'uli\n                              </span>\n                            ) : (\n                              !isAdminOrManager && (\n                                <span className=\"text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded\">⏳ Tasdiq kutilmoqda</span>\n                              )\n                            )}\n                          </div>\n                          <div className=\"flex flex-wrap items-end gap-2\">\n                            <label className=\"text-[11px] text-gray-600 dark:text-gray-400\">\n                              <span className=\"block mb-0.5 font-medium\">Kelib tushgan</span>\n                              <input className={inpCls} type=\"number\" min=\"0\" value={e.plannedVolume} disabled={ijroDisabled}\n                                onChange={(ev) => setIJ(\"plannedVolume\", ev.target.value)} />\n                            </label>\n                            <label className=\"text-[11px] text-gray-600 dark:text-gray-400\">\n                              <span className=\"block mb-0.5 font-medium\">Bajarilgan</span>\n                              <input className={inpCls} type=\"number\" min=\"0\" value={e.actualVolume} disabled={ijroDisabled}\n                                onChange={(ev) => setIJ(\"actualVolume\", ev.target.value)} />\n                            </label>\n                            <label className=\"text-[11px] text-gray-600 dark:text-gray-400\">\n                              <span className=\"block mb-0.5 font-medium\">Muddatdan kech</span>\n                              <input className={inpCls} type=\"number\" min=\"0\" value={e.ijroLate} disabled={ijroDisabled}\n                                onChange={(ev) => setIJ(\"ijroLate\", ev.target.value)} />\n                            </label>\n                            <label className=\"text-[11px] text-gray-600 dark:text-gray-400\">\n                              <span className=\"block mb-0.5 font-medium\">Bajarilmagan</span>\n                              <input className={inpCls} type=\"number\" min=\"0\" value={e.ijroUnexecuted} disabled={ijroDisabled}\n                                onChange={(ev) => setIJ(\"ijroUnexecuted\", ev.target.value)} />\n                            </label>\n                            <div className=\"flex flex-col items-center px-2 border-l border-amber-200\">\n                              <div className=\"text-[10px] text-gray-500 uppercase\">KPI</div>\n                              <div className=\"text-base font-bold text-amber-700\">{ijroPct !== null ? `${ijroPct}%` : \"—\"}</div>\n                            </div>\n                            {!ijroDisabled && (\n                              <button\n                                onClick={() => saveIjroProgress(ijroTaskAll.id)}\n                                disabled={e.saving}\n                                className=\"text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50\"\n                              >\n                                {e.saving ? \"...\" : \"Saqlash\"}\n                              </button>\n                            )}\n                          </div>\n                        </div>\n                      );\n                    })() : null;\n\n                    // Malaka talabi bloki — 0..5 ball, KPI = (ball/5)*100\n                    const mehnatBlock = mehnatTaskAll ? (() => {\n                      const m = mehnatEdits[mehnatTaskAll.id] ?? { workHours: \"\", lateMinutes: \"\", lateDays: \"\", result: \"\", saving: false };\n                      const setM = (field: string, val: string) =>\n                        setMehnatEdits((p) => ({ ...p, [mehnatTaskAll.id]: { ...(p[mehnatTaskAll.id] ?? m), [field]: val } }));\n                      let mehnatPct: number | null = null;\n                      const ballStr = (m.result ?? \"\").toString().replace(\",\", \".\").trim();\n                      if (ballStr !== \"\") {\n                        const ball = Number(ballStr);\n                        if (!isNaN(ball)) {\n                          const clamped = Math.min(5, Math.max(0, ball));\n                          mehnatPct = Math.round((clamped / 5) * 100);\n                        }\n                      }\n                      const mehnatDisabled = !canEditMehnatTask;\n                      const mInpCls = \"w-24 border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed\";\n                      return (\n                        <div className=\"space-y-2\">\n                          <div className=\"flex items-center gap-2 flex-wrap\">\n                            <span className=\"text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide\">Malaka talabi</span>\n                            <span className=\"text-xs font-medium text-gray-800 dark:text-gray-200\">\n                              Xodimning oylik malaka talabi (0–5 ball, 5 ball = 100%)\n                            </span>\n                            {mehnatDisabled && (\n                              <span className=\"text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded\">\n                                🔒 Faqat Mehnat mas'uli\n                              </span>\n                            )}\n                          </div>\n                          <div className=\"flex flex-wrap items-end gap-2\">\n                            <label className=\"text-[11px] text-gray-600 dark:text-gray-400\">\n                              <span className=\"block mb-0.5 font-medium\">Ball (0–5)</span>\n                              <input\n                                className={mInpCls}\n                                type=\"number\"\n                                min=\"0\"\n                                max=\"5\"\n                                step=\"0.1\"\n                                value={m.result}\n                                disabled={mehnatDisabled}\n                                onChange={(ev) => setM(\"result\", ev.target.value)}\n                                placeholder=\"masalan 4.5\"\n                              />\n                            </label>\n                            <div className=\"flex flex-col items-center px-2 border-l border-emerald-200\">\n                              <div className=\"text-[10px] text-gray-500 uppercase\">KPI</div>\n                              <div className=\"text-base font-bold text-emerald-700\">{mehnatPct !== null ? `${mehnatPct}%` : \"—\"}</div>\n                            </div>\n                            {!mehnatDisabled && (\n                              <button\n                                onClick={() => saveMehnatProgress(mehnatTaskAll.id)}\n                                disabled={m.saving}\n                                className=\"text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50\"\n                              >\n                                {m.saving ? \"...\" : \"Saqlash\"}\n                              </button>\n                            )}\n                          </div>\n                        </div>\n                      );\n                    })() : null;\n\n                    // Render: ijro va mehnat bo'lsa ikkita td yonma-yon, faqat bittasi bo'lsa to'liq kenglik\n                    if (ijroBlock && mehnatBlock) {\n                      const halfL = Math.ceil(totalCols / 2);\n                      const halfR = totalCols - halfL;\n                      return (\n                        <tr key={task.id} className=\"border-b hover:bg-gray-50/50\">\n                          <td className=\"px-2 py-2 text-center border-r text-muted-foreground align-top\">{rowNum}</td>\n                          <td colSpan={halfL} className=\"px-3 py-3 border-r bg-amber-50/40 dark:bg-amber-950/10 align-top\">\n                            {ijroBlock}\n                          </td>\n                          <td colSpan={halfR} className=\"px-3 py-3 border-r bg-emerald-50/40 dark:bg-emerald-950/10 align-top\">\n                            {mehnatBlock}\n                          </td>\n                        </tr>\n                      );\n                    }\n                    // Faqat ijro\n                    if (ijroBlock) {\n                      return (\n                        <tr key={task.id} className=\"border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70\">\n                          <td className=\"px-2 py-2 text-center border-r text-muted-foreground align-top\">{rowNum}</td>\n                          <td colSpan={totalCols} className=\"px-3 py-3 border-r\">{ijroBlock}</td>\n                        </tr>\n                      );\n                    }\n                    // Faqat mehnat\n                    return (\n                      <tr key={task.id} className=\"border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70\">\n                        <td className=\"px-2 py-2 text-center border-r text-muted-foreground align-top\">{rowNum}</td>\n                        <td colSpan={totalCols} className=\"px-3 py-3 border-r\">{mehnatBlock}</td>\n                      </tr>\n                    );\n                  }\n\n                  return (\n                    <tr\n                      key={task.id}\n                      className={\n                        isInlineEditing\n                          ? \"bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200\"\n                          : isSection\n                          ? \"bg-blue-50 dark:bg-blue-950/30 border-b font-semibold\"\n                          : \"border-b hover:bg-muted/20\"\n                      }\n                    >\n                      <td className=\"px-2 py-2 text-center border-r text-muted-foreground\">{rowNum}</td>\n\n                      {isSection ? (\n                        isInlineEditing ? (\n                          <td colSpan={11} className=\"px-1 py-1 border-r\">\n                            <input className={inp} value={inlineEditTask.title} onChange={e => setIE(\"title\", e.target.value)} />\n                          </td>\n                        ) : (\n                          <td colSpan={isLocked ? 13 : 11} className=\"px-3 py-2 border-r text-blue-800 dark:text-blue-300 text-xs font-semibold\">\n                            {d(task.title)}\n                          </td>\n                        )\n                      ) : isInlineEditing ? (\n                        <>\n                          <td className=\"px-1 py-1 border-r min-w-[150px]\">\n                            <textarea className={`${inp} resize-none`} rows={2} value={inlineEditTask.title} onChange={e => setIE(\"title\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[120px]\">\n                            <textarea className={`${inp} resize-none`} rows={2} value={inlineEditTask.implementationMechanism} onChange={e => setIE(\"implementationMechanism\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[90px]\">\n                            <input className={inp} value={inlineEditTask.fundingSource} onChange={e => setIE(\"fundingSource\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[130px]\">\n                            <MultiEmployeeSelect\n                              compact\n                              value={inlineEditTask.responsiblePerson ?? \"\"}\n                              onChange={(val) => setIE(\"responsiblePerson\", val)}\n                              options={employeeOptions}\n                              placeholder=\"— Tanlang —\"\n                            />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[70px]\">\n                            <select className={sel} value={inlineEditTask.unitOfMeasure} onChange={e => setIE(\"unitOfMeasure\", e.target.value)}>\n                              <option value=\"\">—</option>\n                              {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.value}</option>)}\n                            </select>\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[50px]\">\n                            <input className={inp} value={inlineEditTask.plannedVolume} onChange={e => setIE(\"plannedVolume\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[50px]\">\n                            <input className={inp} value={inlineEditTask.actualVolume} onChange={e => setIE(\"actualVolume\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[55px]\">\n                            <input className={inp} type=\"number\" min={0} max={100} value={inlineEditTask.completionPercentage} onChange={e => setIE(\"completionPercentage\", e.target.value)} />\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[100px]\">\n                            <select className={sel} value={inlineEditTask.location} onChange={e => setIE(\"location\", e.target.value)}>\n                              <option value=\"\">—</option>\n                              {locationOptions.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}\n                            </select>\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[100px]\">\n                            <select className={sel} value={inlineEditTask.controller} onChange={e => setIE(\"controller\", e.target.value)}>\n                              <option value=\"\">—</option>\n                              {employeeOptions.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}\n                            </select>\n                          </td>\n                          <td className=\"px-1 py-1 border-r min-w-[75px]\">\n                            <select className={sel} value={inlineEditTask.status} onChange={e => setIE(\"status\", e.target.value)}>\n                              <option value=\"pending\">Kutilmoqda</option>\n                              <option value=\"in_progress\">Jarayonda</option>\n                              <option value=\"completed\">Bajarildi</option>\n                            </select>\n                          </td>\n                        </>\n                      ) : (\n                        <>\n                          <td className=\"px-2 py-2 border-r leading-snug whitespace-normal break-words max-w-[300px]\">{d(task.title)}</td>\n                          <td className=\"px-2 py-2 border-r text-muted-foreground leading-snug whitespace-normal break-words\">\n                            {task.implementationMechanism || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-muted-foreground\">\n                            {task.fundingSource || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-muted-foreground leading-snug\">\n                            {task.responsiblePerson\n                              ? task.responsiblePerson.split(\",\").map((n: string) => n.trim()).filter(Boolean).map((name: string, i: number) => (\n                                  <span key={i} className=\"inline-block bg-primary/10 text-primary text-[10px] rounded px-1.5 py-0.5 mr-0.5 mb-0.5 font-medium\">{name}</span>\n                                ))\n                              : \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-center text-muted-foreground\">\n                            {task.unitOfMeasure || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-center font-medium\">\n                            {task.plannedVolume || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-center font-medium text-blue-600\">\n                            {task.actualVolume || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-center\">\n                            <div className=\"flex flex-col items-center gap-1\">\n                              <span className=\"font-bold\">{task.completionPercentage}%</span>\n                              <Progress value={task.completionPercentage} className=\"h-1 w-12\" />\n                            </div>\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-muted-foreground leading-snug\">\n                            {task.location || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-muted-foreground leading-snug\">\n                            {task.controller || \"—\"}\n                          </td>\n                          <td className=\"px-2 py-2 border-r text-center\">\n                            <TaskStatusBadge status={task.status} />\n                          </td>\n                        </>\n                      )}\n\n                      {isLocked && !isSection && (\n                        <>\n                          <td className=\"px-1 py-1 border-r\">\n                            {editingProgressIds.has(task.id) ? (\n                              <div className=\"flex items-center gap-1\">\n                                <input\n                                  type=\"text\"\n                                  className=\"w-16 border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-800\"\n                                  placeholder=\"Miqdor\"\n                                  autoFocus\n                                  value={progressEdits[task.id]?.actualVolume ?? \"\"}\n                                  onChange={(e) =>\n                                    setProgressEdits((p) => ({ ...p, [task.id]: { ...p[task.id], actualVolume: e.target.value } }))\n                                  }\n                                  onKeyDown={(e) => { if (e.key === \"Enter\") saveProgress(task.id); if (e.key === \"Escape\") setEditingProgressIds((p) => { const n = new Set(p); n.delete(task.id); return n; }); }}\n                                />\n                                {(() => { const p = calcPct(task.id, progressEdits[task.id]?.actualVolume); return p !== null ? <span className=\"text-[10px] text-blue-600 font-semibold whitespace-nowrap\">{p}%</span> : null; })()}\n                                <button\n                                  onClick={() => saveProgress(task.id)}\n                                  disabled={progressEdits[task.id]?.saving}\n                                  className=\"text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 whitespace-nowrap\"\n                                >\n                                  {progressEdits[task.id]?.saving ? \"...\" : t(\"btn_save\")}\n                                </button>\n                                <button\n                                  onClick={() => setEditingProgressIds((p) => { const n = new Set(p); n.delete(task.id); return n; })}\n                                  className=\"text-[10px] text-gray-400 hover:text-gray-600\"\n                                >✕</button>\n                              </div>\n                            ) : (\n                              <div\n                                className=\"flex items-center gap-1 cursor-pointer group\"\n                                onClick={() => setEditingProgressIds((p) => new Set(p).add(task.id))}\n                                title=\"Tahrirlash uchun bosing\"\n                              >\n                                <span className=\"text-xs font-medium\">{progressEdits[task.id]?.actualVolume || task.actualVolume || \"—\"}</span>\n                                <span className=\"text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity\">✎</span>\n                              </div>\n                            )}\n                          </td>\n                          <td className=\"px-1 py-1 text-center\">\n                            <input\n                              type=\"file\"\n                              accept=\"application/pdf\"\n                              className=\"hidden\"\n                              ref={(el) => { fileInputRefs.current[task.id] = el; }}\n                              onChange={(e) => {\n                                const file = e.target.files?.[0];\n                                if (file) uploadPdf(task.id, file);\n                                e.target.value = \"\";\n                              }}\n                            />\n                            <div className=\"flex flex-col items-center gap-0.5\">\n                              <button\n                                onClick={() => fileInputRefs.current[task.id]?.click()}\n                                disabled={progressEdits[task.id]?.uploading}\n                                className=\"text-[10px] bg-green-600 hover:bg-green-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 whitespace-nowrap\"\n                              >\n                                {progressEdits[task.id]?.uploading ? \"Yuklanmoqda...\" : \"PDF yuklash\"}\n                              </button>\n                              {(() => {\n                                const rawUrl = progressEdits[task.id]?.pdfUrl ?? task.pdfUrl;\n                                if (!rawUrl) return null;\n                                const href = rawUrl.startsWith(\"/api/\") ? rawUrl : `/api${rawUrl}`;\n                                return (\n                                  <div className=\"flex flex-col items-center gap-0.5 w-full\">\n                                    <a\n                                      href={href}\n                                      target=\"_blank\"\n                                      rel=\"noreferrer\"\n                                      className=\"text-[10px] text-blue-600 underline hover:text-blue-800\"\n                                    >\n                                      📄 Ko'rish\n                                    </a>\n                                    {isAdminOrManager && task.status !== \"completed\" && (\n                                      <div className=\"flex gap-1 mt-0.5\">\n                                        <button\n                                          onClick={() => approveTask(task.id)}\n                                          disabled={progressEdits[task.id]?.approving || progressEdits[task.id]?.rejecting}\n                                          className=\"text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium\"\n                                        >\n                                          {progressEdits[task.id]?.approving ? \"...\" : \"✓ Tasdiqlash\"}\n                                        </button>\n                                        <button\n                                          onClick={() => rejectTask(task.id)}\n                                          disabled={progressEdits[task.id]?.approving || progressEdits[task.id]?.rejecting}\n                                          className=\"text-[10px] bg-red-500 hover:bg-red-600 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium\"\n                                        >\n                                          {progressEdits[task.id]?.rejecting ? \"...\" : \"✗ Rad qilish\"}\n                                        </button>\n                                      </div>\n                                    )}\n                                    {task.status === \"completed\" && (\n                                      <span className=\"text-[10px] text-emerald-700 font-semibold\">✓ Tasdiqlangan</span>\n                                    )}\n                                    {task.status !== \"completed\" && !isAdminOrManager && (\n                                      <span className=\"text-[10px] text-amber-600 font-semibold\">⏳ Tasdiqlash kutilmoqda</span>\n                                    )}\n                                  </div>\n                                );\n                              })()}\n                            </div>\n                          </td>\n                        </>\n                      )}\n\n                      {!isLocked && (\n                        <td className=\"px-1 py-2 text-center\">\n                          {isInlineEditing ? (\n                            <div className=\"flex flex-col items-center gap-1\">\n                              <button\n                                onClick={saveInlineEdit}\n                                disabled={updateTaskMutation.isPending}\n                                className=\"text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium\"\n                              >\n                                {updateTaskMutation.isPending ? \"...\" : t(\"btn_save\")}\n                              </button>\n                              <button\n                                onClick={() => setInlineEditTask(null)}\n                                className=\"text-[10px] text-gray-500 hover:text-gray-700\"\n                              >\n                                {t(\"btn_cancel\")}\n                              </button>\n                            </div>\n                          ) : (\n                            <DropdownMenu>\n                              <DropdownMenuTrigger asChild>\n                                <Button variant=\"ghost\" size=\"icon\" className=\"h-6 w-6\">\n                                  <MoreHorizontal className=\"h-3.5 w-3.5\" />\n                                </Button>\n                              </DropdownMenuTrigger>\n                              <DropdownMenuContent align=\"end\">\n                                <DropdownMenuItem onClick={() => openEdit(task)}>\n                                  <Pencil className=\"mr-2 h-3.5 w-3.5\" />Tahrirlash\n                                </DropdownMenuItem>\n                                <DropdownMenuItem\n                                  onClick={() => { setSelectedTask(task); setIsDeleteDialogOpen(true); }}\n                                  className=\"text-destructive focus:text-destructive\"\n                                >\n                                  <Trash2 className=\"mr-2 h-3.5 w-3.5\" />O'chirish\n                                </DropdownMenuItem>\n                              </DropdownMenuContent>\n                            </DropdownMenu>\n                          )}\n                        </td>\n                      )}\n                    </tr>\n                  );\n                })}\n              </tbody>\n            </table>\n          </div>\n        )}\n      </div>\n\n      {/* Task Dialog */}\n      <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>\n        <DialogContent className=\"sm:max-w-[580px] max-h-[88vh] overflow-y-auto\">\n          <DialogHeader>\n            <DialogTitle>\n              {addingSection ? \"Bo'lim sarlavhasi qo'shish\" : \"Yangi vazifa qo'shish\"}\n            </DialogTitle>\n          </DialogHeader>\n\n          <Form {...form}>\n            <form onSubmit={form.handleSubmit(onSubmitTask)} className=\"space-y-4\">\n              <FormField\n                control={form.control}\n                name=\"title\"\n                render={({ field }) => (\n                  <FormItem>\n                    <FormLabel>\n                      {addingSection ? \"Bo'lim\" : \"Chora-tadbirlar (vazifa nomi)\"}\n                      <span className=\"text-destructive ml-1\">*</span>\n                    </FormLabel>\n                    <FormControl>\n                      {addingSection ? (\n                        <select\n                          value={field.value ?? \"\"}\n                          onChange={(e) => field.onChange(e.target.value)}\n                          className=\"w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring\"\n                        >\n                          <option value=\"\">— Bo'limni tanlang —</option>\n                          {departmentsData.map((dept) => (\n                            <option key={dept.id} value={dept.name}>{d(dept.name)}</option>\n                          ))}\n                        </select>\n                      ) : (\n                        <Textarea\n                          placeholder=\"Vazifa nomini kiriting...\"\n                          className=\"resize-none\"\n                          rows={2}\n                          {...field}\n                        />\n                      )}\n                    </FormControl>\n                    <FormMessage />\n                  </FormItem>\n                )}\n              />\n\n              {!addingSection && (\n                <>\n                  <FormField\n                    control={form.control}\n                    name=\"implementationMechanism\"\n                    render={({ field }) => (\n                      <FormItem>\n                        <FormLabel>Amalga oshirish mexanizmi</FormLabel>\n                        <FormControl>\n                          <Textarea placeholder=\"Mexanizm...\" className=\"resize-none\" rows={2} {...field} />\n                        </FormControl>\n                      </FormItem>\n                    )}\n                  />\n\n                  <FormField\n                    control={form.control}\n                    name=\"responsiblePerson\"\n                    render={({ field }) => (\n                      <FormItem>\n                        <FormLabel>Birgalikda bajaradigan ijrochi</FormLabel>\n                        <FormControl>\n                          <MultiEmployeeSelect\n                            value={field.value ?? \"\"}\n                            onChange={field.onChange}\n                            options={employeeOptions}\n                            placeholder=\"— Ijrochi(larni) tanlang —\"\n                          />\n                        </FormControl>\n                      </FormItem>\n                    )}\n                  />\n\n                  <div className=\"grid grid-cols-2 gap-4\">\n                    <FormField\n                      control={form.control}\n                      name=\"fundingSource\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>Moliyalashtirish manbalari</FormLabel>\n                          <FormControl>\n                            <Input placeholder=\"Manba yoki summa...\" {...field} />\n                          </FormControl>\n                        </FormItem>\n                      )}\n                    />\n                    <FormField\n                      control={form.control}\n                      name=\"unitOfMeasure\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>O'lchov birligi</FormLabel>\n                          <Select onValueChange={field.onChange} value={field.value ?? \"\"}>\n                            <FormControl>\n                              <SelectTrigger>\n                                <SelectValue placeholder=\"Tanlang...\" />\n                              </SelectTrigger>\n                            </FormControl>\n                            <SelectContent>\n                              {UNIT_OPTIONS.map((u) => (\n                                <SelectItem key={u.value} value={u.value}>\n                                  {u.label}\n                                </SelectItem>\n                              ))}\n                            </SelectContent>\n                          </Select>\n                        </FormItem>\n                      )}\n                    />\n                  </div>\n\n                  <div className=\"grid grid-cols-2 gap-4\">\n                    <FormField\n                      control={form.control}\n                      name=\"plannedVolume\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>Reja (hajm)</FormLabel>\n                          <FormControl>\n                            <Input placeholder=\"100\" {...field} />\n                          </FormControl>\n                        </FormItem>\n                      )}\n                    />\n                    <FormField\n                      control={form.control}\n                      name=\"actualVolume\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>Amalda (bajarilgan)</FormLabel>\n                          <FormControl>\n                            <Input placeholder=\"71\" {...field} />\n                          </FormControl>\n                        </FormItem>\n                      )}\n                    />\n                  </div>\n\n                  <FormField\n                    control={form.control}\n                    name=\"controller\"\n                    render={({ field }) => (\n                      <FormItem>\n                        <FormLabel>Tasdiqlovchi</FormLabel>\n                        <FormControl>\n                          <select\n                            value={field.value ?? \"\"}\n                            onChange={(e) => field.onChange(e.target.value)}\n                            className=\"w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring\"\n                          >\n                            <option value=\"\">— Tanlang —</option>\n                            {employeeOptions.map((e) => (\n                              <option key={e.value} value={e.value}>{e.label}</option>\n                            ))}\n                          </select>\n                        </FormControl>\n                      </FormItem>\n                    )}\n                  />\n\n                  <FormField\n                    control={form.control}\n                    name=\"location\"\n                    render={({ field }) => (\n                      <FormItem>\n                        <FormLabel>Hudud</FormLabel>\n                        <select\n                          value={field.value ?? \"\"}\n                          onChange={(e) => field.onChange(e.target.value)}\n                          className=\"w-full h-9 text-sm border border-input rounded-md px-3 bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring\"\n                        >\n                          <option value=\"\">Tanlang...</option>\n                          {locationOptions.map((l) => (\n                            <option key={l.value} value={l.value}>{l.label}</option>\n                          ))}\n                        </select>\n                      </FormItem>\n                    )}\n                  />\n\n                  <FormField\n                    control={form.control}\n                    name=\"actualResult\"\n                    render={({ field }) => (\n                      <FormItem>\n                        <FormLabel>Haqiqiy natija (izoh)</FormLabel>\n                        <FormControl>\n                          <Textarea placeholder=\"Bajarilgan natija haqida...\" className=\"resize-none\" rows={2} {...field} />\n                        </FormControl>\n                      </FormItem>\n                    )}\n                  />\n\n                  <div className=\"grid grid-cols-2 gap-4\">\n                    <FormField\n                      control={form.control}\n                      name=\"completionPercentage\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>Bajarilishi % (0–100)</FormLabel>\n                          <FormControl>\n                            <Input type=\"number\" min={0} max={100} {...field} />\n                          </FormControl>\n                          <FormMessage />\n                        </FormItem>\n                      )}\n                    />\n                    <FormField\n                      control={form.control}\n                      name=\"status\"\n                      render={({ field }) => (\n                        <FormItem>\n                          <FormLabel>Holati</FormLabel>\n                          <Select onValueChange={field.onChange} value={field.value}>\n                            <FormControl>\n                              <SelectTrigger>\n                                <SelectValue />\n                              </SelectTrigger>\n                            </FormControl>\n                            <SelectContent>\n                              <SelectItem value=\"pending\">Kutilmoqda</SelectItem>\n                              <SelectItem value=\"in_progress\">Jarayonda</SelectItem>\n                              <SelectItem value=\"completed\">Bajarildi</SelectItem>\n                            </SelectContent>\n                          </Select>\n                        </FormItem>\n                      )}\n                    />\n                  </div>\n                </>\n              )}\n\n              <DialogFooter>\n                <Button type=\"button\" variant=\"outline\" onClick={() => setIsTaskDialogOpen(false)}>\n                  {t(\"btn_cancel\")}\n                </Button>\n                <Button type=\"submit\" disabled={createTaskMutation.isPending || updateTaskMutation.isPending}>\n                  {createTaskMutation.isPending || updateTaskMutation.isPending ? t(\"btn_saving\") : t(\"btn_save\")}\n                </Button>\n              </DialogFooter>\n            </form>\n          </Form>\n        </DialogContent>\n      </Dialog>\n\n      {/* Delete Dialog */}\n      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>\n        <DialogContent className=\"sm:max-w-[360px]\">\n          <DialogHeader>\n            <DialogTitle>O'chirishni tasdiqlang</DialogTitle>\n          </DialogHeader>\n          <p className=\"text-sm text-muted-foreground\">Bu qatorni o'chirmoqchimisiz?</p>\n          <DialogFooter>\n            <Button variant=\"outline\" onClick={() => setIsDeleteDialogOpen(false)}>{t(\"btn_cancel\")}</Button>\n            <Button variant=\"destructive\"\n              onClick={() => selectedTask && deleteTaskMutation.mutate({ id, taskId: selectedTask.id })}\n              disabled={deleteTaskMutation.isPending}\n            >\n              {deleteTaskMutation.isPending ? t(\"btn_deleting\") : t(\"btn_delete\")}\n            </Button>\n          </DialogFooter>\n        </DialogContent>\n      </Dialog>\n\n      {/* Approve Dialog */}\n      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>\n        <DialogContent className=\"sm:max-w-[400px]\">\n          <DialogHeader>\n            <DialogTitle>Ish rejani tasdiqlash</DialogTitle>\n          </DialogHeader>\n          <Textarea\n            placeholder=\"Izoh (ixtiyoriy)...\"\n            value={approveComment}\n            onChange={(e) => setApproveComment(e.target.value)}\n            className=\"resize-none\"\n            rows={3}\n          />\n          <DialogFooter>\n            <Button variant=\"outline\" onClick={() => setIsApproveDialogOpen(false)}>{t(\"btn_cancel\")}</Button>\n            <Button\n              className=\"bg-green-600 hover:bg-green-700\"\n              onClick={() => approveMutation.mutate({ id, data: { comment: approveComment } })}\n              disabled={approveMutation.isPending}\n            >\n              {approveMutation.isPending ? \"Tasdiqlanmoqda...\" : \"Tasdiqlash\"}\n            </Button>\n          </DialogFooter>\n        </DialogContent>\n      </Dialog>\n\n      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>\n        <DialogContent className=\"sm:max-w-[400px]\">\n          <DialogHeader>\n            <DialogTitle className=\"text-red-600\">Ish rejani rad qilish</DialogTitle>\n          </DialogHeader>\n          <Textarea\n            placeholder=\"Rad qilish sababi (ixtiyoriy)...\"\n            value={rejectComment}\n            onChange={(e) => setRejectComment(e.target.value)}\n            className=\"resize-none border-red-200 focus-visible:ring-red-400\"\n            rows={3}\n          />\n          <DialogFooter>\n            <Button variant=\"outline\" onClick={() => setIsRejectDialogOpen(false)}>{t(\"btn_cancel\")}</Button>\n            <Button\n              variant=\"destructive\"\n              onClick={rejectPlan}\n              disabled={isRejecting}\n            >\n              {isRejecting ? \"Rad qilinmoqda...\" : \"Rad qilish\"}\n            </Button>\n          </DialogFooter>\n        </DialogContent>\n      </Dialog>\n    </div>\n  );\n}\n
+import { useState, useEffect, useRef, useMemo } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { useParams, Link } from "wouter";
+import * as XLSX from "xlsx";
+import { useRegion } from "@/lib/region-context";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  FileText,
+  Printer,
+  Download,
+} from "lucide-react";
+import { MultiEmployeeSelect } from "@/components/multi-employee-select";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import {
+  useGetWorkPlan,
+  getGetWorkPlanQueryKey,
+  useSubmitWorkPlan,
+  useApproveWorkPlan,
+  useCreateWorkPlanTask,
+  useUpdateWorkPlanTask,
+  useDeleteWorkPlanTask,
+  useGetMe,
+  getGetMeQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
+  customFetch,
+} from "@workspace/api-client-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/lang-context";
+import { getUnitOptions } from "@/lib/unit-options";
+
+
+const UNIT_OPTIONS_PLACEHOLDER = [
+  // Uzunlik
+  { value: "mm", label: "mm — millimetr" },
+  { value: "sm", label: "sm — santimetr" },
+  { value: "m", label: "m — metr" },
+  { value: "km", label: "km — kilometr" },
+  // Yuza
+  { value: "m²", label: "m² — kvadrat metr" },
+  { value: "km²", label: "km² — kvadrat kilometr" },
+  { value: "ga", label: "ga — gektar" },
+  // Hajm
+  { value: "ml", label: "ml — millilitr" },
+  { value: "l", label: "l — litr" },
+  { value: "m³", label: "m³ — kub metr" },
+  { value: "ming m³", label: "ming m³" },
+  { value: "mln m³", label: "mln m³ — million kub metr" },
+  // Oqim
+  { value: "l/s", label: "l/s — litr/soniya" },
+  { value: "m³/s", label: "m³/s — kub metr/soniya" },
+  { value: "m³/soat", label: "m³/soat — kub metr/soat" },
+  { value: "m³/kun", label: "m³/kun — kub metr/kun" },
+  // Massa
+  { value: "g", label: "g — gramm" },
+  { value: "kg", label: "kg — kilogramm" },
+  { value: "t", label: "t — tonna" },
+  { value: "ming t", label: "ming t — ming tonna" },
+  // Bosim / Temperatura
+  { value: "atm", label: "atm — atmosfera" },
+  { value: "bar", label: "bar" },
+  { value: "MPa", label: "MPa — megapaskal" },
+  { value: "°C", label: "°C — daraja Selsiy" },
+  // Elektr
+  { value: "kVt", label: "kVt — kilovat" },
+  { value: "MVt", label: "MVt — megavat" },
+  { value: "kVt·soat", label: "kVt·soat — kilovatt-soat" },
+  { value: "MVt·soat", label: "MVt·soat — megavatt-soat" },
+  // Sanoq
+  { value: "dona", label: "dona" },
+  { value: "ta", label: "ta" },
+  { value: "nafar", label: "nafar — kishi" },
+  { value: "oila", label: "oila" },
+  { value: "uy-joy", label: "uy-joy" },
+  { value: "xonadon", label: "xonadon" },
+  { value: "abonent", label: "abonent" },
+  { value: "iste'molchi", label: "iste'molchi" },
+  { value: "tashkilot", label: "tashkilot" },
+  { value: "korxona", label: "korxona" },
+  { value: "manzil", label: "manzil" },
+  { value: "nuqta", label: "nuqta" },
+  { value: "quduq", label: "quduq" },
+  { value: "stansiya", label: "stansiya" },
+  { value: "inshoot", label: "inshoot" },
+  { value: "agregat", label: "agregat" },
+  { value: "nasos", label: "nasos" },
+  { value: "truba", label: "truba" },
+  { value: "kran", label: "kran" },
+  { value: "hisoblagich", label: "hisoblagich (schyotchik)" },
+  // Vaqt
+  { value: "daqiqa", label: "daqiqa" },
+  { value: "soat", label: "soat" },
+  { value: "kun", label: "kun" },
+  { value: "hafta", label: "hafta" },
+  { value: "oy", label: "oy" },
+  { value: "yil", label: "yil" },
+  { value: "marta", label: "marta" },
+  { value: "seans", label: "seans" },
+  { value: "muddat", label: "muddat" },
+  // Hujjat / faoliyat
+  { value: "loyiha", label: "loyiha" },
+  { value: "hujjat", label: "hujjat" },
+  { value: "tadbir", label: "tadbir" },
+  { value: "dastur", label: "dastur" },
+  { value: "shartnoma", label: "shartnoma" },
+  { value: "buyurtma", label: "buyurtma" },
+  { value: "ariza", label: "ariza" },
+  { value: "shikoyat", label: "shikoyat" },
+  { value: "tekshiruv", label: "tekshiruv" },
+  { value: "hisobot", label: "hisobot" },
+  { value: "yig'ilish", label: "yig'ilish" },
+  { value: "o'quv", label: "o'quv (trening)" },
+  { value: "ish o'rni", label: "ish o'rni" },
+  // Moliyaviy
+  { value: "so'm", label: "so'm" },
+  { value: "ming so'm", label: "ming so'm" },
+  { value: "mln so'm", label: "mln so'm — million so'm" },
+  { value: "mlrd so'm", label: "mlrd so'm — milliard so'm" },
+  { value: "USD", label: "USD — dollar" },
+  // Foiz / nisbiy
+  { value: "%", label: "% — foiz" },
+  { value: "ball", label: "ball" },
+  { value: "indeks", label: "indeks" },
+  { value: "koeffitsient", label: "koeffitsient" },
+  // Boshqa
+  { value: "—", label: "— (ko'rsatilmagan)" },
+];
+
+const STATUS_CLASS: Record<string, string> = {
+  draft:     "bg-gray-100 text-gray-600 border-gray-200",
+  submitted: "bg-blue-100 text-blue-700 border-blue-200",
+  approved:  "bg-green-100 text-green-700 border-green-200",
+  completed: "bg-teal-100 text-teal-700 border-teal-200",
+};
+
+const TASK_STATUS_CLASS: Record<string, string> = {
+  pending:     "bg-gray-100 text-gray-600",
+  in_progress: "bg-blue-100 text-blue-700",
+  completed:   "bg-green-100 text-green-700",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const { t, d } = useLang();
+  const labelMap: Record<string, string> = {
+    draft:     t("status_draft"),
+    submitted: t("status_submitted"),
+    approved:  t("status_approved"),
+    completed: t("status_completed"),
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_CLASS[status] ?? ""}`}>
+      {labelMap[status] ?? status}
+    </span>
+  );
+}
+
+function TaskStatusBadge({ status }: { status: string }) {
+  const { t, d } = useLang();
+  const labelMap: Record<string, string> = {
+    pending:     t("status_pending"),
+    in_progress: t("status_in_progress"),
+    completed:   t("status_completed"),
+  };
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${TASK_STATUS_CLASS[status] ?? ""}`}>
+      {labelMap[status] ?? status}
+    </span>
+  );
+}
+
+const taskSchema = z.object({
+  isSection: z.boolean().default(false),
+  title: z.string().min(1, "Sarlavhani kiriting"),
+  implementationMechanism: z.string().optional(),
+  fundingSource: z.string().optional(),
+  unitOfMeasure: z.string().optional(),
+  plannedVolume: z.string().optional(),
+  actualVolume: z.string().optional(),
+  completionPercentage: z.coerce.number().min(0).max(100).default(0),
+  responsiblePerson: z.string().optional(),
+  location: z.string().optional(),
+  controller: z.string().optional(),
+  actualResult: z.string().optional(),
+  status: z.enum(["pending", "in_progress", "completed"]).default("pending"),
+});
+
+type TaskFormValues = z.infer<typeof taskSchema>;
+
+const defaultValues: TaskFormValues = {
+  isSection: false,
+  title: "",
+  implementationMechanism: "",
+  fundingSource: "",
+  unitOfMeasure: "",
+  plannedVolume: "",
+  actualVolume: "",
+  completionPercentage: 0,
+  responsiblePerson: "",
+  location: "",
+  controller: "",
+  actualResult: "",
+  status: "pending",
+};
+
+type TaskEdit = { actualVolume: string; pdfUrl: string | null; uploading: boolean; saving: boolean; approving: boolean; rejecting: boolean };
+
+export default function WorkPlanDetail() {
+  const params = useParams();
+  const id = Number(params.id);
+  const { toast } = useToast();
+  const { lang, t, d } = useLang();
+  const queryClient = useQueryClient();
+  const { selectedTuman, selectedViloyat } = useRegion();
+  const UNIT_OPTIONS = useMemo(() => getUnitOptions(lang), [lang]);
+
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectComment, setRejectComment] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [addingSection, setAddingSection] = useState(false);
+  const [approveComment, setApproveComment] = useState("");
+  const [inlineEditTask, setInlineEditTask] = useState<any>(null);
+
+  const [progressEdits, setProgressEdits] = useState<Record<number, TaskEdit>>({});
+  const [ijroEdits, setIjroEdits] = useState<Record<number, { plannedVolume: string; actualVolume: string; ijroLate: string; ijroUnexecuted: string; saving: boolean }>>({});
+  const [mehnatEdits, setMehnatEdits] = useState<Record<number, { workHours: string; lateMinutes: string; lateDays: string; result: string; saving: boolean }>>({});
+  const [editingProgressIds, setEditingProgressIds] = useState<Set<number>>(new Set());
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const isAdminOrManager = user?.role === "admin" || user?.role === "manager";
+  const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
+  const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
+  const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;
+  const canEditMehnatTask = isAdminOrManager || isMehnatResponsibleUser;
+
+  const { data: mfylarData = [] } = useQuery({
+    queryKey: ["mfylar", selectedTuman],
+    queryFn: () => {
+      const params = selectedTuman ? `?tuman=${encodeURIComponent(selectedTuman)}` : "";
+      return customFetch<{ id: number; name: string }[]>(`${BASE}/api/mfylar${params}`);
+    },
+    staleTime: 0,
+  });
+  const locationOptions = mfylarData.map((m) => ({ value: m.name, label: m.name }));
+
+  const { data: departmentsData = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => customFetch<{ id: number; name: string }[]>(`${BASE}/api/departments`),
+    staleTime: 60_000,
+  });
+
+  const { data: approverData } = useQuery({
+    queryKey: ["approver", selectedViloyat, selectedTuman],
+    queryFn: () => {
+      if (!selectedViloyat && !selectedTuman) return Promise.resolve({ fullName: null });
+      const p = new URLSearchParams();
+      if (selectedTuman) p.set("tuman", selectedTuman);
+      if (selectedViloyat) p.set("viloyat", selectedViloyat);
+      return customFetch<{ fullName: string | null }>(`${BASE}/api/employees/approver?${p.toString()}`);
+    },
+    staleTime: 0,
+  });
+  const approverName = approverData?.fullName ?? "";
+
+  const { data: employeesData } = useListEmployees(undefined, {
+    query: { queryKey: getListEmployeesQueryKey() },
+  });
+  const employeeOptions = ((employeesData as any[] | undefined) ?? []).map((e: any) => ({
+    value: e.fullName as string,
+    label: e.fullName as string,
+  }));
+
+  const { data: plan, isLoading } = useGetWorkPlan(id, {
+    query: { queryKey: getGetWorkPlanQueryKey(id), enabled: !!id },
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetWorkPlanQueryKey(id) });
+
+  useEffect(() => {
+    if (!plan?.tasks) return;
+    setProgressEdits((prev) => {
+      const next = { ...prev };
+      for (const task of (plan.tasks ?? [])) {
+        if (!task.isSection && !(task.id in next)) {
+          next[task.id] = { actualVolume: task.actualVolume ?? "", pdfUrl: task.pdfUrl ?? null, uploading: false, saving: false, approving: false, rejecting: false };
+        }
+      }
+      return next;
+    });
+    setIjroEdits((prev) => {
+      const next = { ...prev };
+      for (const task of (plan.tasks ?? []) as any[]) {
+        if (task.category === "ijro" && !(task.id in next)) {
+          next[task.id] = {
+            plannedVolume: task.plannedVolume ?? "",
+            actualVolume: task.actualVolume ?? "",
+            ijroLate: task.ijroLate != null ? String(task.ijroLate) : "",
+            ijroUnexecuted: task.ijroUnexecuted != null ? String(task.ijroUnexecuted) : "",
+            saving: false,
+          };
+        }
+      }
+      return next;
+    });
+    setMehnatEdits((prev) => {
+      const next = { ...prev };
+      for (const task of (plan.tasks ?? []) as any[]) {
+        if (task.category === "mehnat" && !(task.id in next)) {
+          next[task.id] = {
+            workHours: task.mehnatWorkHours != null ? String(task.mehnatWorkHours) : "",
+            lateMinutes: task.mehnatLateMinutes != null ? String(task.mehnatLateMinutes) : "",
+            lateDays: task.mehnatLateDays != null ? String(task.mehnatLateDays) : "",
+            result: task.mehnatResult ?? "",
+            saving: false,
+          };
+        }
+      }
+      return next;
+    });
+  }, [plan?.tasks]);
+
+  const submitMutation = useSubmitWorkPlan({
+    mutation: { onSuccess: () => { invalidate(); toast({ title: "Ish reja tasdiqlash uchun yuborildi" }); } },
+  });
+  const approveMutation = useApproveWorkPlan({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        setIsApproveDialogOpen(false);
+        toast({ title: "Ish reja tasdiqlandi" });
+      },
+    },
+  });
+  const createTaskMutation = useCreateWorkPlanTask({
+    mutation: { onSuccess: () => { invalidate(); setIsTaskDialogOpen(false); toast({ title: "Qator qo'shildi" }); } },
+  });
+  const updateTaskMutation = useUpdateWorkPlanTask({
+    mutation: { onSuccess: () => { invalidate(); setInlineEditTask(null); toast({ title: "Qator yangilandi" }); } },
+  });
+  const deleteTaskMutation = useDeleteWorkPlanTask({
+    mutation: { onSuccess: () => { invalidate(); setIsDeleteDialogOpen(false); toast({ title: "Qator o'chirildi" }); } },
+  });
+
+  const form = useForm<TaskFormValues>({ resolver: zodResolver(taskSchema), defaultValues });
+
+  const openCreate = (isSection = false) => {
+    setSelectedTask(null);
+    setAddingSection(isSection);
+    form.reset({ ...defaultValues, isSection, controller: approverName });
+    setIsTaskDialogOpen(true);
+  };
+
+  const openEdit = (task: any) => {
+    setInlineEditTask({
+      id: task.id,
+      isSection: task.isSection ?? false,
+      title: task.title ?? "",
+      implementationMechanism: task.implementationMechanism ?? "",
+      fundingSource: task.fundingSource ?? "",
+      unitOfMeasure: task.unitOfMeasure ?? "",
+      plannedVolume: String(task.plannedVolume ?? ""),
+      actualVolume: String(task.actualVolume ?? ""),
+      completionPercentage: task.completionPercentage ?? 0,
+      responsiblePerson: task.responsiblePerson ?? "",
+      location: task.location ?? "",
+      controller: task.controller ?? "",
+      actualResult: task.actualResult ?? "",
+      status: task.status ?? "pending",
+    });
+  };
+
+  const saveInlineEdit = async () => {
+    if (!inlineEditTask) return;
+    if (isLocked) {
+      // Tasdiqlangan/jo'natilgan rejalar uchun PATCH progress endpoint ishlatiladi
+      try {
+        await customFetch(`${BASE}/api/work-plans/${id}/tasks/${inlineEditTask.id}/progress`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            actualVolume: inlineEditTask.actualVolume || null,
+            completionPercentage: Number(inlineEditTask.completionPercentage) || 0,
+            status: inlineEditTask.status ?? "pending",
+            actualResult: inlineEditTask.actualResult || null,
+          }),
+          headers: { "Content-Type": "application/json" },
+        } as any);
+        invalidate();
+        setInlineEditTask(null);
+        toast({ title: "Qator yangilandi" });
+      } catch {
+        toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+      }
+    } else {
+      updateTaskMutation.mutate({
+        id,
+        taskId: inlineEditTask.id,
+        data: {
+          isSection: inlineEditTask.isSection,
+          title: inlineEditTask.title,
+          implementationMechanism: inlineEditTask.implementationMechanism || null,
+          fundingSource: inlineEditTask.fundingSource || null,
+          unitOfMeasure: inlineEditTask.unitOfMeasure || null,
+          plannedVolume: inlineEditTask.plannedVolume || null,
+          actualVolume: inlineEditTask.actualVolume || null,
+          completionPercentage: Number(inlineEditTask.completionPercentage) || 0,
+          responsiblePerson: inlineEditTask.responsiblePerson || null,
+          location: inlineEditTask.location || null,
+          controller: inlineEditTask.controller || null,
+          actualResult: inlineEditTask.actualResult || null,
+          status: inlineEditTask.status ?? "pending",
+        } as any,
+      });
+    }
+  };
+
+  const onSubmitTask = (data: TaskFormValues) => {
+    createTaskMutation.mutate({ id, data: data as any });
+  };
+
+  const downloadExcel = () => {
+    if (!plan) return;
+    const rows: any[] = [];
+    let counter = 0;
+    for (const task of (plan.tasks ?? [])) {
+      if (task.isSection) {
+        rows.push({ "№": "", "Chora-tadbirlar": task.title, "Amalga oshirish mexanizmi": "", "Moliyalashtirish manbalari": "", "O'lchov birligi": "", "Reja": "", "Amalda": "", "Bajarilishi %": "", "Birgalikda bajaradigan ijrochi": "", "Hudud": "", "Tasdiqlovchi": "", "Holati": "" });
+      } else {
+        counter++;
+        rows.push({
+          "№": counter,
+          "Chora-tadbirlar": task.title ?? "",
+          "Amalga oshirish mexanizmi": task.implementationMechanism ?? "",
+          "Moliyalashtirish manbalari": task.fundingSource ?? "",
+          "O'lchov birligi": task.unitOfMeasure ?? "",
+          "Reja": task.plannedVolume ?? "",
+          "Amalda": task.actualVolume ?? "",
+          "Bajarilishi %": task.completionPercentage ?? 0,
+          "Birgalikda bajaradigan ijrochi": task.responsiblePerson ?? "",
+          "Hudud": task.location ?? "",
+          "Tasdiqlovchi": task.controller ?? "",
+          "Holati": task.status === "completed" ? t("wp_completed") : task.status === "in_progress" ? t("wp_in_progress") : t("wp_pending"),
+        });
+      }
+    }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Chora-tadbirlar");
+    const fileName = `${plan.employeeName ?? "ish-reja"}_${plan.period ?? ""}.xlsx`.replace(/\s+/g, "_");
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const downloadPdf = async () => {
+    if (!plan) return;
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const QRCode = (await import("qrcode")).default;
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 12;
+    let y = margin;
+
+    doc.setTextColor(0, 0, 0);
+
+    const txt = (text: string, x: number, yy: number, opts?: any) => {
+      doc.text(text || "", x, yy, opts);
+    };
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const fmtDate = (val: string | null | undefined) => {
+      if (!val) return "";
+      const d = new Date(val);
+      return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+    };
+
+    /* ── QR kod (o'ng yuqori burchak) ── */
+    const qrSize = 34;
+    const qrX = pageW - margin - qrSize;
+    const qrY = margin;
+    try {
+      const planUrl = `${window.location.origin}/work-plans/${id}`;
+      const qrDataUrl = await QRCode.toDataURL(planUrl, { width: 256, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
+      doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      txt("Elektron ish reja", qrX + qrSize / 2, qrY + qrSize + 4, { align: "center" });
+    } catch (_) {}
+
+    /* ── 1. KELISHILDI / TASDIQLANDI stamp bloki ── */
+    const stampGap = 8;
+    const stampAreaW = qrX - margin - stampGap;
+    const stampW = (stampAreaW - stampGap) / 2;
+    const stampH = 36;
+    const lineH = 6.5;
+
+    const drawStamp = (label: string, position: string | undefined, name: string, dateStr: string, sx: number) => {
+      doc.setDrawColor(60, 60, 60);
+      doc.setLineWidth(0.5);
+      doc.rect(sx, y, stampW, stampH);
+
+      // header fill
+      doc.setFillColor(240, 242, 246);
+      doc.rect(sx, y, stampW, 10, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      txt(label, sx + stampW / 2, y + 7, { align: "center" });
+
+      doc.setLineWidth(0.3);
+      doc.setDrawColor(120, 120, 120);
+      doc.line(sx, y + 10, sx + stampW, y + 10);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+
+      let iy = y + 10 + lineH;
+      if (position) {
+        const posLines: string[] = doc.splitTextToSize(position, stampW - 8);
+        doc.text(posLines, sx + 5, iy);
+        iy += posLines.length * lineH;
+      }
+      if (name) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        const nameLines: string[] = doc.splitTextToSize(name, stampW - 8);
+        doc.text(nameLines, sx + 5, iy);
+        doc.setFont("helvetica", "normal");
+        iy += nameLines.length * lineH;
+      }
+      if (dateStr) {
+        doc.setFontSize(9);
+        txt(dateStr, sx + 5, iy);
+      }
+    };
+
+    drawStamp(
+      "KELISHILDI",
+      (plan as any).employeePosition,
+      plan.employeeName ?? "",
+      fmtDate(plan.createdAt ?? null),
+      margin,
+    );
+
+    const stampX2 = margin + stampW + stampGap;
+    if (plan.approvedByName) {
+      drawStamp(
+        "TASDIQLANDI",
+        (plan as any).approvedByPosition,
+        plan.approvedByName,
+        fmtDate((plan as any).approvedAt ?? null),
+        stampX2,
+      );
+    } else {
+      doc.setDrawColor(60, 60, 60);
+      doc.setLineWidth(0.5);
+      doc.rect(stampX2, y, stampW, stampH);
+      doc.setFillColor(240, 242, 246);
+      doc.rect(stampX2, y, stampW, 10, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      txt("TASDIQLANDI", stampX2 + stampW / 2, y + 7, { align: "center" });
+      doc.setLineWidth(0.3);
+      doc.setDrawColor(120, 120, 120);
+      doc.line(stampX2, y + 10, stampX2 + stampW, y + 10);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      txt("Tasdiqlanmagan", stampX2 + 5, y + 10 + lineH);
+    }
+
+    y += stampH + 8;
+
+    /* ── 2. Sarlavha ── */
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    const titleLines = doc.splitTextToSize(plan.title ?? "Ish reja", pageW - margin * 2 - 4);
+    doc.text(titleLines, pageW / 2, y, { align: "center" });
+    y += titleLines.length * 7 + 2;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const subParts = [plan.employeeName, plan.departmentName, plan.period ? `Davr: ${plan.period}` : null].filter(Boolean);
+    txt(subParts.join("  \u2022  "), pageW / 2, y, { align: "center" });
+    y += 7;
+
+    /* ── 3. Statistika satri ── */
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 5;
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const realCount = (plan.tasks ?? []).filter((t: any) => !t.isSection).length;
+    const doneCount = (plan.tasks ?? []).filter((t: any) => !t.isSection && t.status === "completed").length;
+    const pct = Math.round(plan.overallProgress ?? 0);
+    doc.setFont("helvetica", "bold");
+    txt("Jami vazifa:", margin, y);
+    doc.setFont("helvetica", "normal");
+    txt(`${realCount}`, margin + 26, y);
+    doc.setFont("helvetica", "bold");
+    txt("Bajarildi:", margin + 40, y);
+    doc.setFont("helvetica", "normal");
+    txt(`${doneCount}/${realCount}`, margin + 58, y);
+    doc.setFont("helvetica", "bold");
+    txt("Bajarilishi:", margin + 80, y);
+    doc.setFont("helvetica", "normal");
+    txt(`${pct}%`, margin + 101, y);
+    y += 6;
+
+    /* ── 4. Jadval ── */
+    const head = [["#", "Chora-tadbirlar", "Mexanizm", "Moliya", "Birlik", "Reja", "Amalda", "%", "Hudud", "Tasdiqlovchi", "Holati"]];
+    const body: any[] = [];
+    let counter = 0;
+    for (const task of (plan.tasks ?? [])) {
+      if ((task as any).isSection) {
+        body.push([{ content: (task as any).title ?? "", colSpan: 11, styles: { fontStyle: "bold", fontSize: 9, fillColor: [237, 241, 248], textColor: [0, 0, 0] } }]);
+      } else {
+        counter++;
+        const statusLabel = (task as any).status === "completed" ? "Bajarildi" : (task as any).status === "in_progress" ? "Jarayonda" : "Kutilmoqda";
+        body.push([
+          counter,
+          (task as any).title ?? "",
+          (task as any).implementationMechanism ?? "",
+          (task as any).fundingSource ?? "",
+          (task as any).unitOfMeasure ?? "",
+          (task as any).plannedVolume ?? "",
+          (task as any).actualVolume ?? "",
+          `${(task as any).completionPercentage ?? 0}%`,
+          (task as any).location ?? "",
+          (task as any).controller ?? "",
+          statusLabel,
+        ]);
+      }
+    }
+
+    autoTable(doc, {
+      startY: y,
+      head,
+      body,
+      styles: { fontSize: 8.5, cellPadding: 2.5, overflow: "linebreak", textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.25 },
+      headStyles: { fillColor: [30, 64, 175], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9, cellPadding: 3 },
+      alternateRowStyles: { fillColor: [248, 250, 255] },
+      columnStyles: {
+        0: { cellWidth: 9, halign: "center" },
+        1: { cellWidth: 54 },
+        2: { cellWidth: 38 },
+        7: { cellWidth: 11, halign: "center" },
+        10: { cellWidth: 20, halign: "center" },
+      },
+      tableLineColor: [160, 160, 160],
+      tableLineWidth: 0.3,
+    });
+
+    const fileName = `${plan.employeeName ?? "ish-reja"}_${plan.period ?? ""}.pdf`.replace(/\s+/g, "_");
+    doc.save(fileName);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-[280px]" />
+        <Skeleton className="h-[100px] w-full" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
+        <FileText className="h-12 w-12 text-muted-foreground/30" />
+        <h2 className="text-lg font-semibold">Ish reja topilmadi</h2>
+        <Link href="/work-plans" className="text-sm text-primary hover:underline flex items-center gap-1">
+          <ChevronLeft className="h-4 w-4" />Ro'yxatga qaytish
+        </Link>
+      </div>
+    );
+  }
+
+  const isLocked = plan.status !== "draft" && plan.status !== "rejected";
+  const realTasks = (plan.tasks ?? []).filter((t: any) => !t.isSection);
+  let taskCounter = 0;
+
+  const calcPct = (taskId: number, actualStr?: string) => {
+    const task = plan.tasks?.find((t: any) => t.id === taskId);
+    const planned = parseFloat(task?.plannedVolume ?? "0");
+    const actual = parseFloat(actualStr ?? progressEdits[taskId]?.actualVolume ?? "0");
+    if (!isNaN(planned) && planned > 0 && !isNaN(actual) && actual >= 0) {
+      return Math.min(100, Math.round((actual / planned) * 100));
+    }
+    return null;
+  };
+
+  const saveProgress = async (taskId: number) => {
+    const edit = progressEdits[taskId];
+    if (!edit) return;
+    // PDF mandatory check: when actualVolume is being entered, a PDF must exist
+    if (edit.actualVolume && edit.actualVolume.trim() !== "") {
+      const task = plan?.tasks?.find((t: any) => t.id === taskId);
+      const hasPdf = !!edit.pdfUrl || !!task?.pdfUrl;
+      if (!hasPdf && !isAdminOrManager) {
+        toast({
+          title: "PDF fayl yuklash majburiy",
+          description: "Avval tasdiqlovchi PDF faylni yuklang, keyin saqlang",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
+    try {
+      const body: Record<string, unknown> = { actualVolume: edit.actualVolume || null };
+      if (edit.pdfUrl) body.pdfUrl = edit.pdfUrl;
+      // Foiz (completionPercentage) FAQAT admin tasdig'idan keyin hisoblanadi.
+      // Foydalanuvchi saqlasa — foiz 0'ga reset bo'ladi, status "kutilmoqda".
+      // Admin tasdiqlaganida (approveTask) actualVolume/plannedVolume bo'yicha foiz hisoblanadi.
+      if (isAdminOrManager) {
+        // Admin xohlasa, frontend hisobini saqlasin (qulaylik uchun)
+        const pct = calcPct(taskId, edit.actualVolume);
+        if (pct !== null) {
+          body.completionPercentage = pct;
+          body.status = pct > 0 ? "in_progress" : "pending";
+        }
+      } else {
+        // Oddiy xodim saqlaganida — har safar qayta tasdiqlash zarur
+        body.completionPercentage = 0;
+        body.status = "pending";
+      }
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({
+        title: "Saqlandi",
+        description: isAdminOrManager ? undefined : "Admin tasdig'i kutilmoqda",
+      });
+      setEditingProgressIds((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));
+    }
+  };
+
+  const saveIjroProgress = async (taskId: number) => {
+    const edit = ijroEdits[taskId];
+    if (!edit) return;
+    setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          plannedVolume: edit.plannedVolume || null,
+          actualVolume: edit.actualVolume || null,
+          ijroLate: edit.ijroLate ? parseInt(edit.ijroLate) : null,
+          ijroUnexecuted: edit.ijroUnexecuted ? parseInt(edit.ijroUnexecuted) : null,
+        }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({
+        title: "Saqlandi",
+        description: isAdminOrManager ? undefined : "Admin tasdig'i kutilmoqda",
+      });
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));
+    }
+  };
+
+  const saveMehnatProgress = async (taskId: number) => {
+    const edit = mehnatEdits[taskId];
+    if (!edit) return;
+    setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          mehnatWorkHours:   edit.workHours   ? parseInt(edit.workHours)   : null,
+          mehnatLateMinutes: edit.lateMinutes ? parseInt(edit.lateMinutes) : null,
+          mehnatLateDays:    edit.lateDays    ? parseInt(edit.lateDays)    : null,
+          mehnatResult:      edit.result || null,
+        }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({ title: "Saqlandi" });
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));
+    }
+  };
+
+  const uploadPdf = async (taskId: number, file: File) => {
+    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: true } }));
+    try {
+      const formData = new FormData();
+      formData.append("pdf", file);
+      const res = await fetch(`${BASE}/api/work-plans/upload-pdf`, { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = (await res.json()) as { url: string };
+      const pdfUrl = data.url;
+      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], pdfUrl, uploading: false } }));
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({ actualVolume: progressEdits[taskId]?.actualVolume || null, pdfUrl }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({ title: "PDF yuklandi va saqlandi" });
+    } catch {
+      toast({ title: "PDF yuklashda xatolik", variant: "destructive" });
+      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: false } }));
+    }
+  };
+
+  const approveTask = async (taskId: number) => {
+    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], approving: true } }));
+    try {
+      // Tasdiqlash payti foizni real qiymatlar bo'yicha hisoblash:
+      // foiz = bajarilgan / reja * 100 (0–100 oralig'ida)
+      const task = plan?.tasks?.find((t: any) => t.id === taskId);
+      const planned = parseFloat((task as any)?.plannedVolume ?? "0");
+      const actual = parseFloat((task as any)?.actualVolume ?? "0");
+      let pct = 100;
+      if (!isNaN(planned) && planned > 0 && !isNaN(actual) && actual >= 0) {
+        pct = Math.min(100, Math.max(0, Math.round((actual / planned) * 100)));
+      }
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed", completionPercentage: pct }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({ title: `Vazifa tasdiqlandi (${pct}%)` });
+    } catch {
+      toast({ title: "Tasdiqlashda xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], approving: false } }));
+    }
+  };
+
+  const rejectTask = async (taskId: number) => {
+    setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], rejecting: true } }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "in_progress", completionPercentage: 0, pdfUrl: null }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({ title: "Vazifa rad qilindi", description: "Xodim qayta topshirishi kerak" });
+    } catch {
+      toast({ title: "Rad qilishda xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], rejecting: false } }));
+    }
+  };
+
+  const rejectPlan = async () => {
+    setIsRejecting(true);
+    try {
+      await customFetch(`${BASE}/api/approve/work-plans/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ action: "reject", comment: rejectComment }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      setIsRejectDialogOpen(false);
+      setRejectComment("");
+      toast({ title: "Ish reja rad qilindi", description: rejectComment || undefined });
+    } catch {
+      toast({ title: "Rad qilishda xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5 pb-12">
+      {/* Top actions bar — like samaradorlik.uz */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Link href="/work-plans" className="text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">Bosh sahifa</span>
+            <span className="text-muted-foreground/50">›</span>
+            <Link href="/work-plans" className="text-sm text-muted-foreground hover:text-primary">Ish rejalar</Link>
+            <span className="text-muted-foreground/50">›</span>
+            <span className="text-sm font-medium truncate max-w-[300px]">{d(plan.employeeName)}</span>
+            <StatusBadge status={plan.status} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="h-8 text-xs gap-1.5">
+            <Printer className="h-3.5 w-3.5" />
+            Chop etish
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+                <Download className="h-3.5 w-3.5" />
+                Yuklab olish
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={downloadExcel}>
+                <FileText className="h-3.5 w-3.5 mr-2 text-green-600" />
+                Elektron (Excel)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={downloadPdf}>
+                <FileText className="h-3.5 w-3.5 mr-2 text-red-500" />
+                PDF shaklida
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {(plan.status === "draft" || plan.status === "rejected") && (
+            <Button size="sm" onClick={() => submitMutation.mutate({ id })} disabled={submitMutation.isPending} className={`h-8 text-xs ${plan.status === "rejected" ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}>
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              {submitMutation.isPending ? "Yuborilmoqda..." : plan.status === "rejected" ? "Qayta yuborish" : "Yuborish"}
+            </Button>
+          )}
+          {plan.status === "submitted" && isAdminOrManager && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setIsRejectDialogOpen(true)} className="h-8 text-xs border-red-300 text-red-600 hover:bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Rad qilish
+              </Button>
+              <Button size="sm" onClick={() => setIsApproveDialogOpen(true)} className="h-8 text-xs bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                Tasdiqlash
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Plan header card — merged with table */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Approval stamps row */}
+        <div className={`grid border-b ${(plan.status === "approved" || plan.status === "completed") ? "grid-cols-3" : "grid-cols-2"}`}>
+          {(plan.status === "approved" || plan.status === "completed") && (
+            <div className="p-4 border-r flex flex-col items-center justify-center">
+              <QRCodeSVG
+                value={`${window.location.origin}/work-plans/${id}`}
+                size={90}
+                level="M"
+                includeMargin={false}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1 text-center">Tasdiqlangan</p>
+            </div>
+          )}
+          <div className="p-4 border-r">
+            <div className="text-xs font-bold uppercase text-muted-foreground mb-1">Kelishildi</div>
+            {plan.status === "approved" || plan.status === "completed" ? (
+              <div className="text-sm">
+                {(plan as any).employeePosition && (
+                  <div className="text-xs text-muted-foreground mb-0.5 italic">{(plan as any).employeePosition}</div>
+                )}
+                <div className="font-medium">{d(plan.employeeName)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{plan.createdAt?.slice(0, 10)}</div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Imzosini kutmoqda...</div>
+            )}
+          </div>
+          <div className="p-4">
+            <div className="text-xs font-bold uppercase text-muted-foreground mb-1">Tasdiqlandi</div>
+            {(plan.status === "approved" || plan.status === "completed") && plan.approvedByName ? (
+              <div className="text-sm">
+                {(plan as any).approvedByPosition && (
+                  <div className="text-xs text-muted-foreground mb-0.5 italic">{(plan as any).approvedByPosition}</div>
+                )}
+                <div className="font-medium text-green-700">{d(plan.approvedByName)}</div>
+                {(plan as any).approvedAt && (() => {
+                  const d = new Date((plan as any).approvedAt);
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  return (
+                    <div className="text-xs text-muted-foreground mt-0.5 font-medium">
+                      {pad(d.getDate())}.{pad(d.getMonth() + 1)}.{d.getFullYear()} {pad(d.getHours())}:{pad(d.getMinutes())}
+                    </div>
+                  );
+                })()}
+                {plan.approveComment && (
+                  <div className="text-xs text-muted-foreground mt-0.5 italic">"{d(plan.approveComment)}"</div>
+                )}
+              </div>
+            ) : plan.status === "rejected" ? (
+              <div className="text-sm">
+                <div className="font-medium text-red-600">Rad etildi</div>
+                {plan.approveComment && (
+                  <div className="text-xs text-red-500 mt-0.5 italic">"{d(plan.approveComment)}"</div>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Tasdiqlanmagan</div>
+            )}
+          </div>
+        </div>
+
+        {/* Plan title and info */}
+        <div className="p-5 text-center border-b bg-muted/20">
+          <h1 className="font-bold text-base leading-snug">{d(plan.title)}</h1>
+          <div className="flex justify-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">
+            <span>{d(plan.employeeName)}</span>
+            <span>•</span>
+            <span>{d(plan.departmentName)}</span>
+            <span>•</span>
+            <span>Davr: {plan.period}</span>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="px-5 py-3 flex items-center justify-between text-sm border-b">
+          <div className="text-muted-foreground">
+            Umumiy ma'lumotlar: <span className="font-medium text-foreground">{realTasks.length} ta vazifa mavjud</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground">Bajarilishi:</span>
+            <span className="font-semibold">
+              {plan.completedTaskCount}/{plan.taskCount}
+            </span>
+            <Progress value={plan.overallProgress} className="h-2 w-[100px]" />
+            <span className="font-bold text-primary">{Math.round(plan.overallProgress ?? 0)}%</span>
+          </div>
+        </div>
+
+        {/* Rejected notice — inside card */}
+        {plan.status === "rejected" && (
+          <div className="mx-5 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3 text-sm text-red-800">
+            <span className="text-lg mt-0.5">❌</span>
+            <div>
+              <div className="font-semibold mb-0.5">Ish reja rad etildi</div>
+              {plan.approveComment && (
+                <div className="text-red-700">Sabab: <span className="font-medium">{d(plan.approveComment)}</span></div>
+              )}
+              <div className="text-red-600 mt-1 text-xs">Tahrirlang va qayta imzoga yuboring.</div>
+            </div>
+          </div>
+        )}
+
+        {/* Main table header */}
+        <div className="px-5 py-3 border-b bg-primary/5 flex items-center justify-between">
+          <span className="font-semibold text-sm text-primary">Chora-tadbirlar jadvali</span>
+          <div className="flex gap-2">
+            {!isLocked && (
+              <Button size="sm" variant="outline" className="h-7 text-xs px-3" onClick={() => openCreate(false)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Vazifa qo'shish
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {plan.tasks?.length === 0 ? (
+          <div className="py-14 text-center text-muted-foreground text-sm">
+            Hali vazifalar qo'shilmagan
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse" style={{ minWidth: 1200 }}>
+              <thead>
+                <tr className="bg-[#1565C0] text-white">
+                  <th className="w-8 px-2 py-2.5 text-center border-r border-blue-400">№</th>
+                  <th className="min-w-[260px] px-2 py-2.5 text-left border-r border-blue-400">Chora-tadbirlar</th>
+                  <th className="min-w-[140px] px-2 py-2.5 text-left border-r border-blue-400">Amalga oshirish mexanizmi</th>
+                  <th className="min-w-[100px] px-2 py-2.5 text-left border-r border-blue-400">Moliyalashtirish manbalari</th>
+                  <th className="min-w-[130px] px-2 py-2.5 text-center border-r border-blue-400">Birgalikda bajaradigan ijrochi</th>
+                  <th className="min-w-[70px] px-2 py-2.5 text-center border-r border-blue-400">O'lchov birligi</th>
+                  <th className="min-w-[55px] px-2 py-2.5 text-center border-r border-blue-400">Reja</th>
+                  <th className="min-w-[55px] px-2 py-2.5 text-center border-r border-blue-400">Amalda</th>
+                  <th className="min-w-[65px] px-2 py-2.5 text-center border-r border-blue-400">Bajarlishi%</th>
+                  <th className="min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400">Hudud</th>
+                  <th className="min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400">Tasdiqlovchi</th>
+                  <th className="min-w-[80px] px-2 py-2.5 text-center border-r border-blue-400">Holati</th>
+                  {isLocked
+                    ? <th className="min-w-[110px] px-2 py-2.5 text-center border-r border-blue-400">Amalda (kiritish)</th>
+                    : <th className="w-8 px-2 py-2.5 text-center">Amal</th>}
+                  {isLocked && <th className="min-w-[90px] px-2 py-2.5 text-center border-blue-400">PDF hujjat</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {plan.tasks?.map((task: any) => {
+                  const isSection = task.isSection;
+                  if (!isSection) taskCounter++;
+                  const rowNum = isSection ? null : taskCounter;
+                  const isInlineEditing = inlineEditTask?.id === task.id;
+                  const inp = "w-full border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-800";
+                  const sel = "w-full border rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400";
+                  const setIE = (field: string, val: any) => setInlineEditTask((prev: any) => ({ ...prev, [field]: val }));
+
+                  // ── Maxsus ijro/mehnat intizomi qatori (yonma-yon) ──────
+                  const ijroTaskAll = plan.tasks?.find((t: any) => t.category === "ijro");
+                  const mehnatTaskAll = plan.tasks?.find((t: any) => t.category === "mehnat");
+                  // Agar mehnat alohida render bo'lsa va ijro mavjud bo'lsa — uni o'tkazib yuboramiz (ijro qatorida ko'rsatilgan).
+                  if (task.category === "mehnat" && ijroTaskAll) return null;
+
+                  if (task.category === "ijro" || task.category === "mehnat") {
+                    const totalCols = isLocked ? 13 : 12;
+
+                    // Ijro bloki
+                    const ijroBlock = ijroTaskAll ? (() => {
+                      const e = ijroEdits[ijroTaskAll.id] ?? { plannedVolume: "", actualVolume: "", ijroLate: "", ijroUnexecuted: "", saving: false };
+                      const setIJ = (field: string, val: string) =>
+                        setIjroEdits((p) => ({ ...p, [ijroTaskAll.id]: { ...(p[ijroTaskAll.id] ?? e), [field]: val } }));
+                      const planned = parseFloat(e.plannedVolume || "0");
+                      const actual = parseFloat(e.actualVolume || "0");
+                      const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;
+                      const ijroDisabled = !canEditIjroTask;
+                      const inpCls = "w-20 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">Ijro intizomi</span>
+                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              Ijro.gov xat-hujjatlar
+                            </span>
+                            {ijroDisabled ? (
+                              <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                🔒 Faqat Ijro.gov mas'uli
+                              </span>
+                            ) : (
+                              !isAdminOrManager && (
+                                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
+                              )
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Kelib tushgan</span>
+                              <input className={inpCls} type="number" min="0" value={e.plannedVolume} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("plannedVolume", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Bajarilgan</span>
+                              <input className={inpCls} type="number" min="0" value={e.actualVolume} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("actualVolume", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Muddatdan kech</span>
+                              <input className={inpCls} type="number" min="0" value={e.ijroLate} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("ijroLate", ev.target.value)} />
+                            </label>
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Bajarilmagan</span>
+                              <input className={inpCls} type="number" min="0" value={e.ijroUnexecuted} disabled={ijroDisabled}
+                                onChange={(ev) => setIJ("ijroUnexecuted", ev.target.value)} />
+                            </label>
+                            <div className="flex flex-col items-center px-2 border-l border-amber-200">
+                              <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                              <div className="text-base font-bold text-amber-700">{ijroPct !== null ? `${ijroPct}%` : "—"}</div>
+                            </div>
+                            {!ijroDisabled && (
+                              <button
+                                onClick={() => saveIjroProgress(ijroTaskAll.id)}
+                                disabled={e.saving}
+                                className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                              >
+                                {e.saving ? "..." : "Saqlash"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })() : null;
+
+                    // Malaka talabi bloki — 0..5 ball, KPI = (ball/5)*100
+                    const mehnatBlock = mehnatTaskAll ? (() => {
+                      const m = mehnatEdits[mehnatTaskAll.id] ?? { workHours: "", lateMinutes: "", lateDays: "", result: "", saving: false };
+                      const setM = (field: string, val: string) =>
+                        setMehnatEdits((p) => ({ ...p, [mehnatTaskAll.id]: { ...(p[mehnatTaskAll.id] ?? m), [field]: val } }));
+                      let mehnatPct: number | null = null;
+                      const ballStr = (m.result ?? "").toString().replace(",", ".").trim();
+                      if (ballStr !== "") {
+                        const ball = Number(ballStr);
+                        if (!isNaN(ball)) {
+                          const clamped = Math.min(5, Math.max(0, ball));
+                          mehnatPct = Math.round((clamped / 5) * 100);
+                        }
+                      }
+                      const mehnatDisabled = !canEditMehnatTask;
+                      const mInpCls = "w-24 border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Malaka talabi</span>
+                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              Xodimning oylik malaka talabi (0–5 ball, 5 ball = 100%)
+                            </span>
+                            {mehnatDisabled && (
+                              <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                🔒 Faqat Mehnat mas'uli
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                              <span className="block mb-0.5 font-medium">Ball (0–5)</span>
+                              <input
+                                className={mInpCls}
+                                type="number"
+                                min="0"
+                                max="5"
+                                step="0.1"
+                                value={m.result}
+                                disabled={mehnatDisabled}
+                                onChange={(ev) => setM("result", ev.target.value)}
+                                placeholder="masalan 4.5"
+                              />
+                            </label>
+                            <div className="flex flex-col items-center px-2 border-l border-emerald-200">
+                              <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                              <div className="text-base font-bold text-emerald-700">{mehnatPct !== null ? `${mehnatPct}%` : "—"}</div>
+                            </div>
+                            {!mehnatDisabled && (
+                              <button
+                                onClick={() => saveMehnatProgress(mehnatTaskAll.id)}
+                                disabled={m.saving}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                              >
+                                {m.saving ? "..." : "Saqlash"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })() : null;
+
+                    // Render: ijro va mehnat bo'lsa ikkita td yonma-yon, faqat bittasi bo'lsa to'liq kenglik
+                    if (ijroBlock && mehnatBlock) {
+                      const halfL = Math.ceil(totalCols / 2);
+                      const halfR = totalCols - halfL;
+                      return (
+                        <tr key={task.id} className="border-b hover:bg-gray-50/50">
+                          <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                          <td colSpan={halfL} className="px-3 py-3 border-r bg-amber-50/40 dark:bg-amber-950/10 align-top">
+                            {ijroBlock}
+                          </td>
+                          <td colSpan={halfR} className="px-3 py-3 border-r bg-emerald-50/40 dark:bg-emerald-950/10 align-top">
+                            {mehnatBlock}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    // Faqat ijro
+                    if (ijroBlock) {
+                      return (
+                        <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
+                          <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                          <td colSpan={totalCols} className="px-3 py-3 border-r">{ijroBlock}</td>
+                        </tr>
+                      );
+                    }
+                    // Faqat mehnat
+                    return (
+                      <tr key={task.id} className="border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70">
+                        <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                        <td colSpan={totalCols} className="px-3 py-3 border-r">{mehnatBlock}</td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr
+                      key={task.id}
+                      className={
+                        isInlineEditing
+                          ? "bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200"
+                          : isSection
+                          ? "bg-blue-50 dark:bg-blue-950/30 border-b font-semibold"
+                          : "border-b hover:bg-muted/20"
+                      }
+                    >
+                      <td className="px-2 py-2 text-center border-r text-muted-foreground">{rowNum}</td>
+
+                      {isSection ? (
+                        isInlineEditing ? (
+                          <td colSpan={11} className="px-1 py-1 border-r">
+                            <input className={inp} value={inlineEditTask.title} onChange={e => setIE("title", e.target.value)} />
+                          </td>
+                        ) : (
+                          <td colSpan={isLocked ? 13 : 11} className="px-3 py-2 border-r text-blue-800 dark:text-blue-300 text-xs font-semibold">
+                            {d(task.title)}
+                          </td>
+                        )
+                      ) : isInlineEditing ? (
+                        <>
+                          <td className="px-1 py-1 border-r min-w-[150px]">
+                            <textarea className={`${inp} resize-none`} rows={2} value={inlineEditTask.title} onChange={e => setIE("title", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[120px]">
+                            <textarea className={`${inp} resize-none`} rows={2} value={inlineEditTask.implementationMechanism} onChange={e => setIE("implementationMechanism", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[90px]">
+                            <input className={inp} value={inlineEditTask.fundingSource} onChange={e => setIE("fundingSource", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[130px]">
+                            <MultiEmployeeSelect
+                              compact
+                              value={inlineEditTask.responsiblePerson ?? ""}
+                              onChange={(val) => setIE("responsiblePerson", val)}
+                              options={employeeOptions}
+                              placeholder="— Tanlang —"
+                            />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[70px]">
+                            <select className={sel} value={inlineEditTask.unitOfMeasure} onChange={e => setIE("unitOfMeasure", e.target.value)}>
+                              <option value="">—</option>
+                              {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.value}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[50px]">
+                            <input className={inp} value={inlineEditTask.plannedVolume} onChange={e => setIE("plannedVolume", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[50px]">
+                            <input className={inp} value={inlineEditTask.actualVolume} onChange={e => setIE("actualVolume", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[55px]">
+                            <input className={inp} type="number" min={0} max={100} value={inlineEditTask.completionPercentage} onChange={e => setIE("completionPercentage", e.target.value)} />
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[100px]">
+                            <select className={sel} value={inlineEditTask.location} onChange={e => setIE("location", e.target.value)}>
+                              <option value="">—</option>
+                              {locationOptions.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[100px]">
+                            <select className={sel} value={inlineEditTask.controller} onChange={e => setIE("controller", e.target.value)}>
+                              <option value="">—</option>
+                              {employeeOptions.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-1 py-1 border-r min-w-[75px]">
+                            <select className={sel} value={inlineEditTask.status} onChange={e => setIE("status", e.target.value)}>
+                              <option value="pending">Kutilmoqda</option>
+                              <option value="in_progress">Jarayonda</option>
+                              <option value="completed">Bajarildi</option>
+                            </select>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-2 py-2 border-r leading-snug whitespace-normal break-words max-w-[300px]">{d(task.title)}</td>
+                          <td className="px-2 py-2 border-r text-muted-foreground leading-snug whitespace-normal break-words">
+                            {task.implementationMechanism || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-muted-foreground">
+                            {task.fundingSource || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-muted-foreground leading-snug">
+                            {task.responsiblePerson
+                              ? task.responsiblePerson.split(",").map((n: string) => n.trim()).filter(Boolean).map((name: string, i: number) => (
+                                  <span key={i} className="inline-block bg-primary/10 text-primary text-[10px] rounded px-1.5 py-0.5 mr-0.5 mb-0.5 font-medium">{name}</span>
+                                ))
+                              : "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-center text-muted-foreground">
+                            {task.unitOfMeasure || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-center font-medium">
+                            {task.plannedVolume || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-center font-medium text-blue-600">
+                            {task.actualVolume || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="font-bold">{task.completionPercentage}%</span>
+                              <Progress value={task.completionPercentage} className="h-1 w-12" />
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 border-r text-muted-foreground leading-snug">
+                            {task.location || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-muted-foreground leading-snug">
+                            {task.controller || "—"}
+                          </td>
+                          <td className="px-2 py-2 border-r text-center">
+                            <TaskStatusBadge status={task.status} />
+                          </td>
+                        </>
+                      )}
+
+                      {isLocked && !isSection && (
+                        <>
+                          <td className="px-1 py-1 border-r">
+                            {editingProgressIds.has(task.id) ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  className="w-16 border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-800"
+                                  placeholder="Miqdor"
+                                  autoFocus
+                                  value={progressEdits[task.id]?.actualVolume ?? ""}
+                                  onChange={(e) =>
+                                    setProgressEdits((p) => ({ ...p, [task.id]: { ...p[task.id], actualVolume: e.target.value } }))
+                                  }
+                                  onKeyDown={(e) => { if (e.key === "Enter") saveProgress(task.id); if (e.key === "Escape") setEditingProgressIds((p) => { const n = new Set(p); n.delete(task.id); return n; }); }}
+                                />
+                                {(() => { const p = calcPct(task.id, progressEdits[task.id]?.actualVolume); return p !== null ? <span className="text-[10px] text-blue-600 font-semibold whitespace-nowrap">{p}%</span> : null; })()}
+                                <button
+                                  onClick={() => saveProgress(task.id)}
+                                  disabled={progressEdits[task.id]?.saving}
+                                  className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  {progressEdits[task.id]?.saving ? "..." : t("btn_save")}
+                                </button>
+                                <button
+                                  onClick={() => setEditingProgressIds((p) => { const n = new Set(p); n.delete(task.id); return n; })}
+                                  className="text-[10px] text-gray-400 hover:text-gray-600"
+                                >✕</button>
+                              </div>
+                            ) : (
+                              <div
+                                className="flex items-center gap-1 cursor-pointer group"
+                                onClick={() => setEditingProgressIds((p) => new Set(p).add(task.id))}
+                                title="Tahrirlash uchun bosing"
+                              >
+                                <span className="text-xs font-medium">{progressEdits[task.id]?.actualVolume || task.actualVolume || "—"}</span>
+                                <span className="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">✎</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              ref={(el) => { fileInputRefs.current[task.id] = el; }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadPdf(task.id, file);
+                                e.target.value = "";
+                              }}
+                            />
+                            <div className="flex flex-col items-center gap-0.5">
+                              <button
+                                onClick={() => fileInputRefs.current[task.id]?.click()}
+                                disabled={progressEdits[task.id]?.uploading}
+                                className="text-[10px] bg-green-600 hover:bg-green-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {progressEdits[task.id]?.uploading ? "Yuklanmoqda..." : "PDF yuklash"}
+                              </button>
+                              {(() => {
+                                const rawUrl = progressEdits[task.id]?.pdfUrl ?? task.pdfUrl;
+                                if (!rawUrl) return null;
+                                const href = rawUrl.startsWith("/api/") ? rawUrl : `/api${rawUrl}`;
+                                return (
+                                  <div className="flex flex-col items-center gap-0.5 w-full">
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-blue-600 underline hover:text-blue-800"
+                                    >
+                                      📄 Ko'rish
+                                    </a>
+                                    {isAdminOrManager && task.status !== "completed" && (
+                                      <div className="flex gap-1 mt-0.5">
+                                        <button
+                                          onClick={() => approveTask(task.id)}
+                                          disabled={progressEdits[task.id]?.approving || progressEdits[task.id]?.rejecting}
+                                          className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium"
+                                        >
+                                          {progressEdits[task.id]?.approving ? "..." : "✓ Tasdiqlash"}
+                                        </button>
+                                        <button
+                                          onClick={() => rejectTask(task.id)}
+                                          disabled={progressEdits[task.id]?.approving || progressEdits[task.id]?.rejecting}
+                                          className="text-[10px] bg-red-500 hover:bg-red-600 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium"
+                                        >
+                                          {progressEdits[task.id]?.rejecting ? "..." : "✗ Rad qilish"}
+                                        </button>
+                                      </div>
+                                    )}
+                                    {task.status === "completed" && (
+                                      <span className="text-[10px] text-emerald-700 font-semibold">✓ Tasdiqlangan</span>
+                                    )}
+                                    {task.status !== "completed" && !isAdminOrManager && (
+                                      <span className="text-[10px] text-amber-600 font-semibold">⏳ Tasdiqlash kutilmoqda</span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                        </>
+                      )}
+
+                      {!isLocked && (
+                        <td className="px-1 py-2 text-center">
+                          {isInlineEditing ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={saveInlineEdit}
+                                disabled={updateTaskMutation.isPending}
+                                className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded px-2 py-0.5 disabled:opacity-50 whitespace-nowrap font-medium"
+                              >
+                                {updateTaskMutation.isPending ? "..." : t("btn_save")}
+                              </button>
+                              <button
+                                onClick={() => setInlineEditTask(null)}
+                                className="text-[10px] text-gray-500 hover:text-gray-700"
+                              >
+                                {t("btn_cancel")}
+                              </button>
+                            </div>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEdit(task)}>
+                                  <Pencil className="mr-2 h-3.5 w-3.5" />Tahrirlash
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => { setSelectedTask(task); setIsDeleteDialogOpen(true); }}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-3.5 w-3.5" />O'chirish
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Task Dialog */}
+      <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+        <DialogContent className="sm:max-w-[580px] max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {addingSection ? "Bo'lim sarlavhasi qo'shish" : "Yangi vazifa qo'shish"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmitTask)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {addingSection ? "Bo'lim" : "Chora-tadbirlar (vazifa nomi)"}
+                      <span className="text-destructive ml-1">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      {addingSection ? (
+                        <select
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">— Bo'limni tanlang —</option>
+                          {departmentsData.map((dept) => (
+                            <option key={dept.id} value={dept.name}>{d(dept.name)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Textarea
+                          placeholder="Vazifa nomini kiriting..."
+                          className="resize-none"
+                          rows={2}
+                          {...field}
+                        />
+                      )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {!addingSection && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="implementationMechanism"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amalga oshirish mexanizmi</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Mexanizm..." className="resize-none" rows={2} {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="responsiblePerson"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Birgalikda bajaradigan ijrochi</FormLabel>
+                        <FormControl>
+                          <MultiEmployeeSelect
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            options={employeeOptions}
+                            placeholder="— Ijrochi(larni) tanlang —"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="fundingSource"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Moliyalashtirish manbalari</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Manba yoki summa..." {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="unitOfMeasure"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>O'lchov birligi</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Tanlang..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {UNIT_OPTIONS.map((u) => (
+                                <SelectItem key={u.value} value={u.value}>
+                                  {u.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="plannedVolume"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reja (hajm)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="100" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="actualVolume"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Amalda (bajarilgan)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="71" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="controller"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tasdiqlovchi</FormLabel>
+                        <FormControl>
+                          <select
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <option value="">— Tanlang —</option>
+                            {employeeOptions.map((e) => (
+                              <option key={e.value} value={e.value}>{e.label}</option>
+                            ))}
+                          </select>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hudud</FormLabel>
+                        <select
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          className="w-full h-9 text-sm border border-input rounded-md px-3 bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Tanlang...</option>
+                          {locationOptions.map((l) => (
+                            <option key={l.value} value={l.value}>{l.label}</option>
+                          ))}
+                        </select>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="actualResult"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Haqiqiy natija (izoh)</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Bajarilgan natija haqida..." className="resize-none" rows={2} {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="completionPercentage"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bajarilishi % (0–100)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} max={100} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Holati</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="pending">Kutilmoqda</SelectItem>
+                              <SelectItem value="in_progress">Jarayonda</SelectItem>
+                              <SelectItem value="completed">Bajarildi</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
+                  {t("btn_cancel")}
+                </Button>
+                <Button type="submit" disabled={createTaskMutation.isPending || updateTaskMutation.isPending}>
+                  {createTaskMutation.isPending || updateTaskMutation.isPending ? t("btn_saving") : t("btn_save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle>O'chirishni tasdiqlang</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Bu qatorni o'chirmoqchimisiz?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>{t("btn_cancel")}</Button>
+            <Button variant="destructive"
+              onClick={() => selectedTask && deleteTaskMutation.mutate({ id, taskId: selectedTask.id })}
+              disabled={deleteTaskMutation.isPending}
+            >
+              {deleteTaskMutation.isPending ? t("btn_deleting") : t("btn_delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Dialog */}
+      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Ish rejani tasdiqlash</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            placeholder="Izoh (ixtiyoriy)..."
+            value={approveComment}
+            onChange={(e) => setApproveComment(e.target.value)}
+            className="resize-none"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>{t("btn_cancel")}</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => approveMutation.mutate({ id, data: { comment: approveComment } })}
+              disabled={approveMutation.isPending}
+            >
+              {approveMutation.isPending ? "Tasdiqlanmoqda..." : "Tasdiqlash"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Ish rejani rad qilish</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            placeholder="Rad qilish sababi (ixtiyoriy)..."
+            value={rejectComment}
+            onChange={(e) => setRejectComment(e.target.value)}
+            className="resize-none border-red-200 focus-visible:ring-red-400"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>{t("btn_cancel")}</Button>
+            <Button
+              variant="destructive"
+              onClick={rejectPlan}
+              disabled={isRejecting}
+            >
+              {isRejecting ? "Rad qilinmoqda..." : "Rad qilish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,1 +1,435 @@
-import { Router, type IRouter, type Response } from \"express\";\nimport { db } from \"@workspace/db\";\nimport { workPlansTable, workPlanTasksTable, employeesTable, departmentsTable, usersTable } from \"@workspace/db\";\nimport { eq, and } from \"drizzle-orm\";\nimport { requireAuth, type AuthenticatedRequest } from \"../middlewares/auth.js\";\n\nconst router: IRouter = Router();\n\nfunction mapTask(t: typeof workPlanTasksTable.$inferSelect) {\n  return {\n    id: t.id,\n    planId: t.planId,\n    orderNum: t.orderNum,\n    isSection: t.isSection,\n    title: t.title,\n    implementationMechanism: t.implementationMechanism ?? null,\n    fundingSource: t.fundingSource ?? null,\n    unitOfMeasure: t.unitOfMeasure ?? null,\n    plannedVolume: t.plannedVolume ?? null,\n    actualVolume: t.actualVolume ?? null,\n    completionPercentage: t.completionPercentage,\n    responsiblePerson: t.responsiblePerson ?? null,\n    location: t.location ?? null,\n    controller: t.controller ?? null,\n    startDate: t.startDate ?? null,\n    deadline: t.deadline ?? null,\n    expectedResult: t.expectedResult ?? null,\n    actualResult: t.actualResult ?? null,\n    status: t.status,\n    pdfUrl: t.pdfUrl ?? null,\n    category: t.category ?? null,\n    ijroLate: t.ijroLate ?? null,\n    ijroUnexecuted: t.ijroUnexecuted ?? null,\n    mehnatWorkHours: t.mehnatWorkHours ?? null,\n    mehnatLateMinutes: t.mehnatLateMinutes ?? null,\n    mehnatLateDays: t.mehnatLateDays ?? null,\n    mehnatResult: t.mehnatResult ?? null,\n    createdAt: t.createdAt.toISOString(),\n  };\n}\n\nasync function enrichPlan(plan: typeof workPlansTable.$inferSelect) {\n  let tasks = await db\n    .select()\n    .from(workPlanTasksTable)\n    .where(eq(workPlanTasksTable.planId, plan.id))\n    .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);\n\n  // Employee ma'lumotlari (agar employeeId bo'lsa)\n  const emp = plan.employeeId\n    ? (await db.select().from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1))[0]\n    : undefined;\n\n  // Tizimda Ijro / Mehnat mas'uli mavjudmi\n  const ijroResp = await db\n    .select({ id: employeesTable.id })\n    .from(employeesTable)\n    .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, \"active\")))\n    .limit(1);\n  const hasIjroResponsible = ijroResp.length > 0;\n\n  const mehnatResp = await db\n    .select({ id: employeesTable.id })\n    .from(employeesTable)\n    .where(and(eq(employeesTable.isMehnatResponsible, true), eq(employeesTable.status, \"active\")))\n    .limit(1);\n  const hasMehnatResponsible = mehnatResp.length > 0;\n\n  // Ijro intizomi avto-vazifasi: agar tizimda Ijro mas'uli bor bo'lsa va shu rejaning\n  // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa — yaratamiz.\n  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasIjroResponsible);\n  if (ijroEligible && !tasks.some((t) => t.category === \"ijro\")) {\n    await db.insert(workPlanTasksTable).values({\n      planId: plan.id,\n      orderNum: 0,\n      isSection: false,\n      title: \"Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar\",\n      unitOfMeasure: \"dona\",\n      category: \"ijro\",\n      status: \"pending\",\n    });\n    tasks = await db\n      .select()\n      .from(workPlanTasksTable)\n      .where(eq(workPlanTasksTable.planId, plan.id))\n      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);\n  }\n\n  // Mehnat intizomi avto-vazifasi: tizimda Mehnat mas'uli bor bo'lsa, mas'ulning\n  // o'zidan tashqari barcha xodimlarga avto-vazifa qo'shamiz.\n  const mehnatEligible = !!(emp && !emp.isMehnatResponsible && hasMehnatResponsible);\n  if (mehnatEligible && !tasks.some((t) => t.category === \"mehnat\")) {\n    await db.insert(workPlanTasksTable).values({\n      planId: plan.id,\n      orderNum: 1,\n      isSection: false,\n      title: \"Malaka talabi (avto-vazifa)\",\n      unitOfMeasure: \"soat\",\n      category: \"mehnat\",\n      status: \"pending\",\n    });\n    tasks = await db\n      .select()\n      .from(workPlanTasksTable)\n      .where(eq(workPlanTasksTable.planId, plan.id))\n      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);\n  }\n\n  // Agar shartlar bajarilmasa, tegishli avto-vazifalarni javobdan filtrlaymiz\n  // (DB'dagi ma'lumot saqlanadi — keyinchalik qaytadi).\n  if (!ijroEligible)   tasks = tasks.filter((t) => t.category !== \"ijro\");\n  if (!mehnatEligible) tasks = tasks.filter((t) => t.category !== \"mehnat\");\n  const dept = emp\n    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1)\n    : [];\n  // Agar employeeId yo'q bo'lsa, userId orqali user ma'lumotlarini olamiz\n  const planUser = (!emp && plan.userId)\n    ? (await db.select({ fullName: usersTable.fullName, tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, plan.userId)).limit(1))[0]\n    : undefined;\n\n  const approver = plan.approvedById\n    ? await db.select().from(usersTable).where(eq(usersTable.id, plan.approvedById)).limit(1)\n    : [];\n\n  // Tasdiqlovchining lavozimini olish (employeeId orqali)\n  const approverEmp = approver[0]?.employeeId\n    ? (await db.select({ position: employeesTable.position }).from(employeesTable).where(eq(employeesTable.id, approver[0].employeeId)).limit(1))[0]\n    : undefined;\n\n  const realTasks = tasks.filter((t) => !t.isSection);\n  const taskCount = realTasks.length;\n  const completedTaskCount = realTasks.filter((t) => t.status === \"completed\").length;\n  const overallProgress =\n    taskCount > 0\n      ? Math.round(realTasks.reduce((sum, t) => sum + t.completionPercentage, 0) / taskCount)\n      : 0;\n\n  const hasPdf = realTasks.some((t) => !!t.pdfUrl);\n\n  return {\n    id: plan.id,\n    employeeId: plan.employeeId ?? null,\n    userId: plan.userId ?? null,\n    employeeName: emp?.fullName ?? planUser?.fullName ?? null,\n    employeePosition: emp?.position ?? null,\n    departmentName: dept[0]?.name ?? null,\n    period: plan.period,\n    title: plan.title,\n    description: plan.description ?? null,\n    status: plan.status,\n    approvedById: plan.approvedById ?? null,\n    approvedByName: approver[0]?.fullName ?? null,\n    approvedByPosition: approverEmp?.position ?? null,\n    approveComment: plan.approveComment ?? null,\n    approvedAt: plan.approvedAt ? plan.approvedAt.toISOString() : null,\n    tasks: tasks.map(mapTask),\n    taskCount,\n    completedTaskCount,\n    overallProgress,\n    hasPdf,\n    createdAt: plan.createdAt.toISOString(),\n  };\n}\n\nrouter.get(\"/work-plans\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const { employeeId, period, departmentId, status, tuman, tumans } = req.query as Record<string, string | undefined>;\n\n  const [userExt] = await db.select({ employeeId: usersTable.employeeId, tuman: usersTable.tuman })\n    .from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);\n  const isAdmin = req.user!.role === \"admin\";\n  const userTuman = userExt?.tuman ?? null;\n\n  let plans = await db.select().from(workPlansTable).orderBy(workPlansTable.createdAt);\n\n  if (!isAdmin) {\n    // Oddiy xodim: faqat o'z ish rejalarini ko'radi\n    const currentUserId = req.user!.id;\n    if (userExt?.employeeId) {\n      plans = plans.filter((p) => p.userId === currentUserId || p.employeeId === userExt.employeeId);\n    } else {\n      plans = plans.filter((p) => p.userId === currentUserId);\n    }\n  } else if (userTuman) {\n    // Tuman admini: FAQAT o'z tumaniga tegishli rejalarni ko'radi\n    const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);\n    const empIds = new Set(allEmps.filter((e) => e.tuman === userTuman).map((e) => e.id));\n    const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);\n    const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman === userTuman).map(u => u.id));\n    plans = plans.filter((p) => (p.userId && tumanUserIds.has(p.userId)) || (p.employeeId && empIds.has(p.employeeId)));\n    if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));\n  } else {\n    // Super admin (tuman yo'q): barcha rejalarni ko'radi, ixtiyoriy filtrlar bilan\n    const currentUserId = req.user!.id;\n    if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));\n    if (tumans) {\n      const tumanList = tumans.split(\",\").map((t) => t.trim()).filter(Boolean);\n      const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);\n      const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman && tumanList.includes(u.tuman!)).map(u => u.id));\n      const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);\n      const empIds = new Set(allEmps.filter((e) => e.tuman && tumanList.includes(e.tuman)).map((e) => e.id));\n      plans = plans.filter((p) =>\n        p.userId === currentUserId\n        || (p.userId && tumanUserIds.has(p.userId))\n        || (p.employeeId && empIds.has(p.employeeId))\n      );\n    } else if (tuman) {\n      const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);\n      const empIds = new Set(allEmps.filter((e) => e.tuman === tuman).map((e) => e.id));\n      const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);\n      const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman === tuman).map(u => u.id));\n      plans = plans.filter((p) =>\n        p.userId === currentUserId\n        || (p.userId && tumanUserIds.has(p.userId))\n        || (p.employeeId && empIds.has(p.employeeId))\n      );\n    }\n  }\n\n  if (period) plans = plans.filter((p) => p.period === period);\n  if (status) plans = plans.filter((p) => p.status === status);\n  if (departmentId) {\n    const deptId = parseInt(departmentId);\n    const empsInDept = await db.select({ id: employeesTable.id }).from(employeesTable).where(eq(employeesTable.departmentId, deptId));\n    const empIds = new Set(empsInDept.map((e) => e.id));\n    plans = plans.filter((p) => p.employeeId && empIds.has(p.employeeId));\n  }\n\n  const result = await Promise.all(plans.map(enrichPlan));\n  res.json(result);\n});\n\ntype TaskInput = {\n  orderNum?: number; isSection?: boolean; title: string;\n  implementationMechanism?: string | null; fundingSource?: string | null;\n  unitOfMeasure?: string | null; plannedVolume?: string | null; actualVolume?: string | null;\n  completionPercentage?: number; responsiblePerson?: string | null; location?: string | null; controller?: string | null;\n  startDate?: string | null; deadline?: string | null;\n  expectedResult?: string | null; actualResult?: string | null; status?: string;\n};\n\nfunction buildTaskValues(planId: number, t: TaskInput, i: number) {\n  return {\n    planId,\n    orderNum: t.orderNum ?? i + 1,\n    isSection: t.isSection ?? false,\n    title: t.title,\n    implementationMechanism: t.implementationMechanism ?? null,\n    fundingSource: t.fundingSource ?? null,\n    unitOfMeasure: t.unitOfMeasure ?? null,\n    plannedVolume: t.plannedVolume ?? null,\n    actualVolume: t.actualVolume ?? null,\n    completionPercentage: t.completionPercentage ?? 0,\n    responsiblePerson: t.responsiblePerson ?? null,\n    location: t.location ?? null,\n    controller: t.controller ?? null,\n    startDate: t.startDate ?? null,\n    deadline: t.deadline ?? null,\n    expectedResult: t.expectedResult ?? null,\n    actualResult: t.actualResult ?? null,\n    status: t.status ?? \"pending\",\n  };\n}\n\nrouter.post(\"/work-plans\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const { employeeId: bodyEmployeeId, period, title, description, tasks } = req.body as {\n    employeeId?: number; period?: string; title?: string;\n    description?: string | null; tasks?: TaskInput[];\n  };\n\n  if (!period || !title) {\n    res.status(400).json({ error: \"Davr va sarlavha kiritilishi shart\" }); return;\n  }\n\n  const currentUserId = req.user!.id;\n  // employeeId: agar body da kelsa yoki user yozuvida bo'lsa ishlatiladi, aks holda null\n  let employeeId: number | null = bodyEmployeeId ?? null;\n  if (!employeeId) {\n    const [userExt] = await db.select({ employeeId: usersTable.employeeId })\n      .from(usersTable).where(eq(usersTable.id, currentUserId)).limit(1);\n    employeeId = userExt?.employeeId ?? null;\n  }\n\n  const [plan] = await db.insert(workPlansTable).values({\n    employeeId: employeeId ?? undefined,\n    userId: currentUserId,\n    period,\n    title,\n    description: description ?? null,\n    status: \"draft\",\n  }).returning();\n\n  if (tasks && tasks.length > 0) {\n    await db.insert(workPlanTasksTable).values(tasks.map((t, i) => buildTaskValues(plan.id, t, i)));\n  }\n\n  res.status(201).json(await enrichPlan(plan));\n});\n\nrouter.get(\"/work-plans/:id\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const id = parseInt(req.params[\"id\"] as string);\n  const plans = await db.select().from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);\n  if (plans.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  res.json(await enrichPlan(plans[0]));\n});\n\nrouter.put(\"/work-plans/:id\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const id = parseInt(req.params[\"id\"] as string);\n  const existing = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);\n  if (existing.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  if (existing[0].status !== \"draft\") { res.status(403).json({ error: \"Imzolashga yuborilgan ish rejani tahrirlash mumkin emas\" }); return; }\n  const { employeeId, period, title, description } = req.body as { employeeId?: number; period?: string; title?: string; description?: string | null };\n  if (!employeeId || !period || !title) { res.status(400).json({ error: \"Majburiy maydonlar\" }); return; }\n  const [plan] = await db.update(workPlansTable).set({ employeeId, period, title, description: description ?? null }).where(eq(workPlansTable.id, id)).returning();\n  if (!plan) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  res.json(await enrichPlan(plan));\n});\n\nrouter.delete(\"/work-plans/:id\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const id = parseInt(req.params[\"id\"] as string);\n  await db.delete(workPlanTasksTable).where(eq(workPlanTasksTable.planId, id));\n  const deleted = await db.delete(workPlansTable).where(eq(workPlansTable.id, id)).returning();\n  if (deleted.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  res.json({ message: \"Ish reja o'chirildi\" });\n});\n\nrouter.post(\"/work-plans/:id/submit\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const id = parseInt(req.params[\"id\"] as string);\n  const [plan] = await db.update(workPlansTable).set({ status: \"submitted\", approvedById: null, approveComment: null }).where(eq(workPlansTable.id, id)).returning();\n  if (!plan) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  res.json(await enrichPlan(plan));\n});\n\nrouter.post(\"/work-plans/:id/approve\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const id = parseInt(req.params[\"id\"] as string);\n  const { comment } = req.body as { comment?: string | null };\n  if (req.user!.role !== \"admin\") { res.status(403).json({ error: \"Ruxsat yo'q\" }); return; }\n\n  // Tuman admini faqat o'z tumaniga tegishli rejani tasdiqlashi mumkin\n  const [approverExt] = await db.select({ tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);\n  if (approverExt?.tuman) {\n    const [existing] = await db.select({ userId: workPlansTable.userId, employeeId: workPlansTable.employeeId }).from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);\n    if (!existing) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n    // Ushbu reja tuman admini tumaniga tegishliligini tekshirish\n    let belongsToTuman = false;\n    if (existing.userId) {\n      const [planUser] = await db.select({ tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, existing.userId)).limit(1);\n      if (planUser?.tuman === approverExt.tuman) belongsToTuman = true;\n    }\n    if (!belongsToTuman && existing.employeeId) {\n      const [planEmp] = await db.select({ tuman: employeesTable.tuman }).from(employeesTable).where(eq(employeesTable.id, existing.employeeId)).limit(1);\n      if (planEmp?.tuman === approverExt.tuman) belongsToTuman = true;\n    }\n    if (!belongsToTuman) { res.status(403).json({ error: \"Siz bu tumanning rejasini tasdiqlashga vakolatli emassiz\" }); return; }\n  }\n\n  const [plan] = await db.update(workPlansTable).set({ status: \"approved\", approvedById: req.user?.id ?? null, approveComment: comment ?? null, approvedAt: new Date() }).where(eq(workPlansTable.id, id)).returning();\n  if (!plan) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  res.json(await enrichPlan(plan));\n});\n\nrouter.get(\"/work-plans/:id/tasks\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const planId = parseInt(req.params[\"id\"] as string);\n  const tasks = await db.select().from(workPlanTasksTable).where(eq(workPlanTasksTable.planId, planId)).orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);\n  res.json(tasks.map(mapTask));\n});\n\nrouter.post(\"/work-plans/:id/tasks\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const planId = parseInt(req.params[\"id\"] as string);\n  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);\n  if (planCheck.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  if (planCheck[0].status !== \"draft\" && planCheck[0].status !== \"rejected\") { res.status(403).json({ error: \"Bu ish rejani tahrirlash mumkin emas\" }); return; }\n  const t = req.body as TaskInput;\n  if (!t.title) { res.status(400).json({ error: \"Sarlavha kiritilishi shart\" }); return; }\n  const existing = await db.select({ id: workPlanTasksTable.id }).from(workPlanTasksTable).where(eq(workPlanTasksTable.planId, planId));\n  const [task] = await db.insert(workPlanTasksTable).values(buildTaskValues(planId, t, existing.length)).returning();\n  res.status(201).json(mapTask(task));\n});\n\nrouter.put(\"/work-plans/:id/tasks/:taskId\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const planId = parseInt(req.params[\"id\"] as string);\n  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);\n  if (planCheck.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  if (planCheck[0].status !== \"draft\" && planCheck[0].status !== \"rejected\") { res.status(403).json({ error: \"Bu ish rejani tahrirlash mumkin emas\" }); return; }\n  const taskId = parseInt(req.params[\"taskId\"] as string);\n  const t = req.body as TaskInput;\n  if (!t.title) { res.status(400).json({ error: \"Sarlavha kiritilishi shart\" }); return; }\n  // Auto-vazifalarni (ijro/mehnat) bu route orqali tahrirlash mumkin emas — faqat /progress orqali.\n  const [existingTask] = await db.select({ category: workPlanTasksTable.category })\n    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);\n  if (existingTask && (existingTask.category === \"ijro\" || existingTask.category === \"mehnat\")) {\n    res.status(403).json({ error: \"Avto-vazifa (ijro/mehnat) faqat o'zining maxsus interfeysi orqali tahrirlanadi\" });\n    return;\n  }\n  const [task] = await db.update(workPlanTasksTable).set({\n    orderNum: t.orderNum ?? 1,\n    isSection: t.isSection ?? false,\n    title: t.title,\n    implementationMechanism: t.implementationMechanism ?? null,\n    fundingSource: t.fundingSource ?? null,\n    unitOfMeasure: t.unitOfMeasure ?? null,\n    plannedVolume: t.plannedVolume ?? null,\n    actualVolume: t.actualVolume ?? null,\n    completionPercentage: t.completionPercentage ?? 0,\n    responsiblePerson: t.responsiblePerson ?? null,\n    location: t.location ?? null,\n    controller: t.controller ?? null,\n    startDate: t.startDate ?? null,\n    deadline: t.deadline ?? null,\n    expectedResult: t.expectedResult ?? null,\n    actualResult: t.actualResult ?? null,\n    status: t.status ?? \"pending\",\n  }).where(eq(workPlanTasksTable.id, taskId)).returning();\n  if (!task) { res.status(404).json({ error: \"Vazifa topilmadi\" }); return; }\n  res.json(mapTask(task));\n});\n\nrouter.delete(\"/work-plans/:id/tasks/:taskId\", requireAuth, async (req: AuthenticatedRequest, res: Response) => {\n  const planId = parseInt(req.params[\"id\"] as string);\n  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);\n  if (planCheck.length === 0) { res.status(404).json({ error: \"Ish reja topilmadi\" }); return; }\n  if (planCheck[0].status !== \"draft\" && planCheck[0].status !== \"rejected\") { res.status(403).json({ error: \"Bu ish rejani tahrirlash mumkin emas\" }); return; }\n  const taskId = parseInt(req.params[\"taskId\"] as string);\n  // Auto-vazifalarni (ijro/mehnat) o'chirish mumkin emas — ular tizim tomonidan boshqariladi.\n  const [existingTask] = await db.select({ category: workPlanTasksTable.category })\n    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);\n  if (existingTask && (existingTask.category === \"ijro\" || existingTask.category === \"mehnat\")) {\n    res.status(403).json({ error: \"Avto-vazifa (ijro/mehnat) o'chirib tashlanmaydi\" });\n    return;\n  }\n  const deleted = await db.delete(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).returning();\n  if (deleted.length === 0) { res.status(404).json({ error: \"Vazifa topilmadi\" }); return; }\n  res.json({ message: \"Vazifa o'chirildi\" });\n});\n\nexport default router;\n
+import { Router, type IRouter, type Response } from "express";
+import { db } from "@workspace/db";
+import { workPlansTable, workPlanTasksTable, employeesTable, departmentsTable, usersTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
+
+const router: IRouter = Router();
+
+function mapTask(t: typeof workPlanTasksTable.$inferSelect) {
+  return {
+    id: t.id,
+    planId: t.planId,
+    orderNum: t.orderNum,
+    isSection: t.isSection,
+    title: t.title,
+    implementationMechanism: t.implementationMechanism ?? null,
+    fundingSource: t.fundingSource ?? null,
+    unitOfMeasure: t.unitOfMeasure ?? null,
+    plannedVolume: t.plannedVolume ?? null,
+    actualVolume: t.actualVolume ?? null,
+    completionPercentage: t.completionPercentage,
+    responsiblePerson: t.responsiblePerson ?? null,
+    location: t.location ?? null,
+    controller: t.controller ?? null,
+    startDate: t.startDate ?? null,
+    deadline: t.deadline ?? null,
+    expectedResult: t.expectedResult ?? null,
+    actualResult: t.actualResult ?? null,
+    status: t.status,
+    pdfUrl: t.pdfUrl ?? null,
+    category: t.category ?? null,
+    ijroLate: t.ijroLate ?? null,
+    ijroUnexecuted: t.ijroUnexecuted ?? null,
+    mehnatWorkHours: t.mehnatWorkHours ?? null,
+    mehnatLateMinutes: t.mehnatLateMinutes ?? null,
+    mehnatLateDays: t.mehnatLateDays ?? null,
+    mehnatResult: t.mehnatResult ?? null,
+    createdAt: t.createdAt.toISOString(),
+  };
+}
+
+async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
+  let tasks = await db
+    .select()
+    .from(workPlanTasksTable)
+    .where(eq(workPlanTasksTable.planId, plan.id))
+    .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
+
+  // Employee ma'lumotlari (agar employeeId bo'lsa)
+  const emp = plan.employeeId
+    ? (await db.select().from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1))[0]
+    : undefined;
+
+  // Tizimda Ijro / Mehnat mas'uli mavjudmi
+  const ijroResp = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, "active")))
+    .limit(1);
+  const hasIjroResponsible = ijroResp.length > 0;
+
+  const mehnatResp = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.isMehnatResponsible, true), eq(employeesTable.status, "active")))
+    .limit(1);
+  const hasMehnatResponsible = mehnatResp.length > 0;
+
+  // Ijro intizomi avto-vazifasi: agar tizimda Ijro mas'uli bor bo'lsa va shu rejaning
+  // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa — yaratamiz.
+  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasIjroResponsible);
+  if (ijroEligible && !tasks.some((t) => t.category === "ijro")) {
+    await db.insert(workPlanTasksTable).values({
+      planId: plan.id,
+      orderNum: 0,
+      isSection: false,
+      title: "Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar",
+      unitOfMeasure: "dona",
+      category: "ijro",
+      status: "pending",
+    });
+    tasks = await db
+      .select()
+      .from(workPlanTasksTable)
+      .where(eq(workPlanTasksTable.planId, plan.id))
+      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
+  }
+
+  // Mehnat intizomi avto-vazifasi: tizimda Mehnat mas'uli bor bo'lsa, mas'ulning
+  // o'zidan tashqari barcha xodimlarga avto-vazifa qo'shamiz.
+  const mehnatEligible = !!(emp && !emp.isMehnatResponsible && hasMehnatResponsible);
+  if (mehnatEligible && !tasks.some((t) => t.category === "mehnat")) {
+    await db.insert(workPlanTasksTable).values({
+      planId: plan.id,
+      orderNum: 1,
+      isSection: false,
+      title: "Malaka talabi (avto-vazifa)",
+      unitOfMeasure: "soat",
+      category: "mehnat",
+      status: "pending",
+    });
+    tasks = await db
+      .select()
+      .from(workPlanTasksTable)
+      .where(eq(workPlanTasksTable.planId, plan.id))
+      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
+  }
+
+  // Agar shartlar bajarilmasa, tegishli avto-vazifalarni javobdan filtrlaymiz
+  // (DB'dagi ma'lumot saqlanadi — keyinchalik qaytadi).
+  if (!ijroEligible)   tasks = tasks.filter((t) => t.category !== "ijro");
+  if (!mehnatEligible) tasks = tasks.filter((t) => t.category !== "mehnat");
+  const dept = emp
+    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1)
+    : [];
+  // Agar employeeId yo'q bo'lsa, userId orqali user ma'lumotlarini olamiz
+  const planUser = (!emp && plan.userId)
+    ? (await db.select({ fullName: usersTable.fullName, tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, plan.userId)).limit(1))[0]
+    : undefined;
+
+  const approver = plan.approvedById
+    ? await db.select().from(usersTable).where(eq(usersTable.id, plan.approvedById)).limit(1)
+    : [];
+
+  // Tasdiqlovchining lavozimini olish (employeeId orqali)
+  const approverEmp = approver[0]?.employeeId
+    ? (await db.select({ position: employeesTable.position }).from(employeesTable).where(eq(employeesTable.id, approver[0].employeeId)).limit(1))[0]
+    : undefined;
+
+  const realTasks = tasks.filter((t) => !t.isSection);
+  const taskCount = realTasks.length;
+  const completedTaskCount = realTasks.filter((t) => t.status === "completed").length;
+  const overallProgress =
+    taskCount > 0
+      ? Math.round(realTasks.reduce((sum, t) => sum + t.completionPercentage, 0) / taskCount)
+      : 0;
+
+  const hasPdf = realTasks.some((t) => !!t.pdfUrl);
+
+  return {
+    id: plan.id,
+    employeeId: plan.employeeId ?? null,
+    userId: plan.userId ?? null,
+    employeeName: emp?.fullName ?? planUser?.fullName ?? null,
+    employeePosition: emp?.position ?? null,
+    departmentName: dept[0]?.name ?? null,
+    period: plan.period,
+    title: plan.title,
+    description: plan.description ?? null,
+    status: plan.status,
+    approvedById: plan.approvedById ?? null,
+    approvedByName: approver[0]?.fullName ?? null,
+    approvedByPosition: approverEmp?.position ?? null,
+    approveComment: plan.approveComment ?? null,
+    approvedAt: plan.approvedAt ? plan.approvedAt.toISOString() : null,
+    tasks: tasks.map(mapTask),
+    taskCount,
+    completedTaskCount,
+    overallProgress,
+    hasPdf,
+    createdAt: plan.createdAt.toISOString(),
+  };
+}
+
+router.get("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { employeeId, period, departmentId, status, tuman, tumans } = req.query as Record<string, string | undefined>;
+
+  const [userExt] = await db.select({ employeeId: usersTable.employeeId, tuman: usersTable.tuman })
+    .from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);
+  const isAdmin = req.user!.role === "admin";
+  const userTuman = userExt?.tuman ?? null;
+
+  let plans = await db.select().from(workPlansTable).orderBy(workPlansTable.createdAt);
+
+  if (!isAdmin) {
+    // Oddiy xodim: faqat o'z ish rejalarini ko'radi
+    const currentUserId = req.user!.id;
+    if (userExt?.employeeId) {
+      plans = plans.filter((p) => p.userId === currentUserId || p.employeeId === userExt.employeeId);
+    } else {
+      plans = plans.filter((p) => p.userId === currentUserId);
+    }
+  } else if (userTuman) {
+    // Tuman admini: FAQAT o'z tumaniga tegishli rejalarni ko'radi
+    const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);
+    const empIds = new Set(allEmps.filter((e) => e.tuman === userTuman).map((e) => e.id));
+    const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);
+    const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman === userTuman).map(u => u.id));
+    plans = plans.filter((p) => (p.userId && tumanUserIds.has(p.userId)) || (p.employeeId && empIds.has(p.employeeId)));
+    if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));
+  } else {
+    // Super admin (tuman yo'q): barcha rejalarni ko'radi, ixtiyoriy filtrlar bilan
+    const currentUserId = req.user!.id;
+    if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));
+    if (tumans) {
+      const tumanList = tumans.split(",").map((t) => t.trim()).filter(Boolean);
+      const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);
+      const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman && tumanList.includes(u.tuman!)).map(u => u.id));
+      const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);
+      const empIds = new Set(allEmps.filter((e) => e.tuman && tumanList.includes(e.tuman)).map((e) => e.id));
+      plans = plans.filter((p) =>
+        p.userId === currentUserId
+        || (p.userId && tumanUserIds.has(p.userId))
+        || (p.employeeId && empIds.has(p.employeeId))
+      );
+    } else if (tuman) {
+      const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);
+      const empIds = new Set(allEmps.filter((e) => e.tuman === tuman).map((e) => e.id));
+      const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);
+      const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman === tuman).map(u => u.id));
+      plans = plans.filter((p) =>
+        p.userId === currentUserId
+        || (p.userId && tumanUserIds.has(p.userId))
+        || (p.employeeId && empIds.has(p.employeeId))
+      );
+    }
+  }
+
+  if (period) plans = plans.filter((p) => p.period === period);
+  if (status) plans = plans.filter((p) => p.status === status);
+  if (departmentId) {
+    const deptId = parseInt(departmentId);
+    const empsInDept = await db.select({ id: employeesTable.id }).from(employeesTable).where(eq(employeesTable.departmentId, deptId));
+    const empIds = new Set(empsInDept.map((e) => e.id));
+    plans = plans.filter((p) => p.employeeId && empIds.has(p.employeeId));
+  }
+
+  const result = await Promise.all(plans.map(enrichPlan));
+  res.json(result);
+});
+
+type TaskInput = {
+  orderNum?: number; isSection?: boolean; title: string;
+  implementationMechanism?: string | null; fundingSource?: string | null;
+  unitOfMeasure?: string | null; plannedVolume?: string | null; actualVolume?: string | null;
+  completionPercentage?: number; responsiblePerson?: string | null; location?: string | null; controller?: string | null;
+  startDate?: string | null; deadline?: string | null;
+  expectedResult?: string | null; actualResult?: string | null; status?: string;
+};
+
+function buildTaskValues(planId: number, t: TaskInput, i: number) {
+  return {
+    planId,
+    orderNum: t.orderNum ?? i + 1,
+    isSection: t.isSection ?? false,
+    title: t.title,
+    implementationMechanism: t.implementationMechanism ?? null,
+    fundingSource: t.fundingSource ?? null,
+    unitOfMeasure: t.unitOfMeasure ?? null,
+    plannedVolume: t.plannedVolume ?? null,
+    actualVolume: t.actualVolume ?? null,
+    completionPercentage: t.completionPercentage ?? 0,
+    responsiblePerson: t.responsiblePerson ?? null,
+    location: t.location ?? null,
+    controller: t.controller ?? null,
+    startDate: t.startDate ?? null,
+    deadline: t.deadline ?? null,
+    expectedResult: t.expectedResult ?? null,
+    actualResult: t.actualResult ?? null,
+    status: t.status ?? "pending",
+  };
+}
+
+router.post("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { employeeId: bodyEmployeeId, period, title, description, tasks } = req.body as {
+    employeeId?: number; period?: string; title?: string;
+    description?: string | null; tasks?: TaskInput[];
+  };
+
+  if (!period || !title) {
+    res.status(400).json({ error: "Davr va sarlavha kiritilishi shart" }); return;
+  }
+
+  const currentUserId = req.user!.id;
+  // employeeId: agar body da kelsa yoki user yozuvida bo'lsa ishlatiladi, aks holda null
+  let employeeId: number | null = bodyEmployeeId ?? null;
+  if (!employeeId) {
+    const [userExt] = await db.select({ employeeId: usersTable.employeeId })
+      .from(usersTable).where(eq(usersTable.id, currentUserId)).limit(1);
+    employeeId = userExt?.employeeId ?? null;
+  }
+
+  const [plan] = await db.insert(workPlansTable).values({
+    employeeId: employeeId ?? undefined,
+    userId: currentUserId,
+    period,
+    title,
+    description: description ?? null,
+    status: "draft",
+  }).returning();
+
+  if (tasks && tasks.length > 0) {
+    await db.insert(workPlanTasksTable).values(tasks.map((t, i) => buildTaskValues(plan.id, t, i)));
+  }
+
+  res.status(201).json(await enrichPlan(plan));
+});
+
+router.get("/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string);
+  const plans = await db.select().from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);
+  if (plans.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  res.json(await enrichPlan(plans[0]));
+});
+
+router.put("/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string);
+  const existing = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);
+  if (existing.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  if (existing[0].status !== "draft") { res.status(403).json({ error: "Imzolashga yuborilgan ish rejani tahrirlash mumkin emas" }); return; }
+  const { employeeId, period, title, description } = req.body as { employeeId?: number; period?: string; title?: string; description?: string | null };
+  if (!employeeId || !period || !title) { res.status(400).json({ error: "Majburiy maydonlar" }); return; }
+  const [plan] = await db.update(workPlansTable).set({ employeeId, period, title, description: description ?? null }).where(eq(workPlansTable.id, id)).returning();
+  if (!plan) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  res.json(await enrichPlan(plan));
+});
+
+router.delete("/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string);
+  await db.delete(workPlanTasksTable).where(eq(workPlanTasksTable.planId, id));
+  const deleted = await db.delete(workPlansTable).where(eq(workPlansTable.id, id)).returning();
+  if (deleted.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  res.json({ message: "Ish reja o'chirildi" });
+});
+
+router.post("/work-plans/:id/submit", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string);
+  const [plan] = await db.update(workPlansTable).set({ status: "submitted", approvedById: null, approveComment: null }).where(eq(workPlansTable.id, id)).returning();
+  if (!plan) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  res.json(await enrichPlan(plan));
+});
+
+router.post("/work-plans/:id/approve", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string);
+  const { comment } = req.body as { comment?: string | null };
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Ruxsat yo'q" }); return; }
+
+  // Tuman admini faqat o'z tumaniga tegishli rejani tasdiqlashi mumkin
+  const [approverExt] = await db.select({ tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);
+  if (approverExt?.tuman) {
+    const [existing] = await db.select({ userId: workPlansTable.userId, employeeId: workPlansTable.employeeId }).from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+    // Ushbu reja tuman admini tumaniga tegishliligini tekshirish
+    let belongsToTuman = false;
+    if (existing.userId) {
+      const [planUser] = await db.select({ tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, existing.userId)).limit(1);
+      if (planUser?.tuman === approverExt.tuman) belongsToTuman = true;
+    }
+    if (!belongsToTuman && existing.employeeId) {
+      const [planEmp] = await db.select({ tuman: employeesTable.tuman }).from(employeesTable).where(eq(employeesTable.id, existing.employeeId)).limit(1);
+      if (planEmp?.tuman === approverExt.tuman) belongsToTuman = true;
+    }
+    if (!belongsToTuman) { res.status(403).json({ error: "Siz bu tumanning rejasini tasdiqlashga vakolatli emassiz" }); return; }
+  }
+
+  const [plan] = await db.update(workPlansTable).set({ status: "approved", approvedById: req.user?.id ?? null, approveComment: comment ?? null, approvedAt: new Date() }).where(eq(workPlansTable.id, id)).returning();
+  if (!plan) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  res.json(await enrichPlan(plan));
+});
+
+router.get("/work-plans/:id/tasks", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const planId = parseInt(req.params["id"] as string);
+  const tasks = await db.select().from(workPlanTasksTable).where(eq(workPlanTasksTable.planId, planId)).orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
+  res.json(tasks.map(mapTask));
+});
+
+router.post("/work-plans/:id/tasks", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const planId = parseInt(req.params["id"] as string);
+  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);
+  if (planCheck.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  if (planCheck[0].status !== "draft" && planCheck[0].status !== "rejected") { res.status(403).json({ error: "Bu ish rejani tahrirlash mumkin emas" }); return; }
+  const t = req.body as TaskInput;
+  if (!t.title) { res.status(400).json({ error: "Sarlavha kiritilishi shart" }); return; }
+  const existing = await db.select({ id: workPlanTasksTable.id }).from(workPlanTasksTable).where(eq(workPlanTasksTable.planId, planId));
+  const [task] = await db.insert(workPlanTasksTable).values(buildTaskValues(planId, t, existing.length)).returning();
+  res.status(201).json(mapTask(task));
+});
+
+router.put("/work-plans/:id/tasks/:taskId", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const planId = parseInt(req.params["id"] as string);
+  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);
+  if (planCheck.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  if (planCheck[0].status !== "draft" && planCheck[0].status !== "rejected") { res.status(403).json({ error: "Bu ish rejani tahrirlash mumkin emas" }); return; }
+  const taskId = parseInt(req.params["taskId"] as string);
+  const t = req.body as TaskInput;
+  if (!t.title) { res.status(400).json({ error: "Sarlavha kiritilishi shart" }); return; }
+  // Auto-vazifalarni (ijro/mehnat) bu route orqali tahrirlash mumkin emas — faqat /progress orqali.
+  const [existingTask] = await db.select({ category: workPlanTasksTable.category })
+    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);
+  if (existingTask && (existingTask.category === "ijro" || existingTask.category === "mehnat")) {
+    res.status(403).json({ error: "Avto-vazifa (ijro/mehnat) faqat o'zining maxsus interfeysi orqali tahrirlanadi" });
+    return;
+  }
+  const [task] = await db.update(workPlanTasksTable).set({
+    orderNum: t.orderNum ?? 1,
+    isSection: t.isSection ?? false,
+    title: t.title,
+    implementationMechanism: t.implementationMechanism ?? null,
+    fundingSource: t.fundingSource ?? null,
+    unitOfMeasure: t.unitOfMeasure ?? null,
+    plannedVolume: t.plannedVolume ?? null,
+    actualVolume: t.actualVolume ?? null,
+    completionPercentage: t.completionPercentage ?? 0,
+    responsiblePerson: t.responsiblePerson ?? null,
+    location: t.location ?? null,
+    controller: t.controller ?? null,
+    startDate: t.startDate ?? null,
+    deadline: t.deadline ?? null,
+    expectedResult: t.expectedResult ?? null,
+    actualResult: t.actualResult ?? null,
+    status: t.status ?? "pending",
+  }).where(eq(workPlanTasksTable.id, taskId)).returning();
+  if (!task) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
+  res.json(mapTask(task));
+});
+
+router.delete("/work-plans/:id/tasks/:taskId", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const planId = parseInt(req.params["id"] as string);
+  const planCheck = await db.select({ status: workPlansTable.status }).from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);
+  if (planCheck.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
+  if (planCheck[0].status !== "draft" && planCheck[0].status !== "rejected") { res.status(403).json({ error: "Bu ish rejani tahrirlash mumkin emas" }); return; }
+  const taskId = parseInt(req.params["taskId"] as string);
+  // Auto-vazifalarni (ijro/mehnat) o'chirish mumkin emas — ular tizim tomonidan boshqariladi.
+  const [existingTask] = await db.select({ category: workPlanTasksTable.category })
+    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);
+  if (existingTask && (existingTask.category === "ijro" || existingTask.category === "mehnat")) {
+    res.status(403).json({ error: "Avto-vazifa (ijro/mehnat) o'chirib tashlanmaydi" });
+    return;
+  }
+  const deleted = await db.delete(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).returning();
+  if (deleted.length === 0) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
+  res.json({ message: "Vazifa o'chirildi" });
+});
+
+export default router;

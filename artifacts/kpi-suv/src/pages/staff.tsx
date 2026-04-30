@@ -70,6 +70,7 @@ const employeeSchema = z.object({
   passportSeries: z.string().max(4).optional(),
   passportNumber: z.string().max(10).optional(),
   pinfl: z.string().max(14).optional(),
+  isIjroResponsible: z.boolean().optional(),
   username: z.string().min(3, "Login kamida 3 ta belgi").optional().or(z.literal("")),
   password: z.string().min(4, "Parol kamida 4 ta belgi").optional().or(z.literal("")),
 });
@@ -194,7 +195,7 @@ export default function Staff() {
     defaultValues: {
       fullName: "", position: "", departmentId: 0, status: "active",
       phone: "", email: "", hireDate: new Date().toISOString().split("T")[0],
-      tuman: "", passportSeries: "", passportNumber: "", pinfl: "", username: "", password: "",
+      tuman: "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, username: "", password: "",
     },
   });
 
@@ -220,7 +221,7 @@ export default function Staff() {
     empForm.reset({
       fullName: "", position: "", departmentId: 0, status: "active",
       phone: "", email: "", hireDate: new Date().toISOString().split("T")[0],
-      tuman: selectedTuman || "", passportSeries: "", passportNumber: "", pinfl: "", username: "", password: "",
+      tuman: selectedTuman || "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, username: "", password: "",
     });
     setEmpDialogOpen(true);
   };
@@ -230,7 +231,7 @@ export default function Staff() {
       fullName: e.fullName, position: e.position, departmentId: e.departmentId, status: e.status,
       phone: e.phone || "", email: e.email || "", hireDate: e.hireDate ? e.hireDate.split("T")[0] : "",
       tuman: e.tuman || "", passportSeries: e.passportSeries || "", passportNumber: e.passportNumber || "",
-      pinfl: e.pinfl || "", username: e.username || "", password: "",
+      pinfl: e.pinfl || "", isIjroResponsible: !!e.isIjroResponsible, username: e.username || "", password: "",
     });
     setEmpDialogOpen(true);
   };
@@ -633,6 +634,30 @@ export default function Staff() {
                     </FormItem>
                   )} />
                 </div>
+              </div>
+
+              {/* Ijro intizomi mas'uli */}
+              <div className="space-y-3">
+                <FormField control={empForm.control} name="isIjroResponsible" render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={!!field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-amber-900 font-medium">
+                        Ijro.gov bo'yicha mas'ul
+                      </FormLabel>
+                      <p className="text-xs text-amber-700">
+                        Belgilansa, qolgan barcha xodimlarning ish rejasiga "Ijro intizomi" bo'yicha avto-vazifa qo'shiladi.
+                      </p>
+                    </div>
+                  </FormItem>
+                )} />
               </div>
 
               {/* Login */}

@@ -49,6 +49,7 @@ workspace/
 - `evaluations` — baholashlar
 - `work_plans` — ish rejalari (vazifalarda `category="ijro"` — ijro intizomi avto-vazifasi; qo'shimcha maydonlar: `ijro_late`, `ijro_unexecuted`)
 - `employees.is_ijro_responsible` — boolean: bu xodim ijro.gov bo'yicha mas'ul. Belgilansa, qolgan barcha xodimlarning ish rejasiga GET so'rovida avto-vazifa qo'shiladi (ijro intizomi, KPI = bajarilgan/kelib_tushgan*100)
+- DIQQAT: Xodimlar ro'yxati `/staff` route ostida `staff.tsx` faylda (legacy `employees.tsx` ham bor — `/employees` uchun). Yangi maydonlar IKKALA faylga ham qo'shilishi kerak.
 - `work_plan_tasks` — ish reja vazifalari
 - `mfylar` — mahalla fuqarolik yig'inlari (MFY)
 

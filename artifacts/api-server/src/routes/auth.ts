@@ -71,7 +71,8 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
   let employeeId: number | null = extra.employeeId ?? null;
 
   // Agar employee_id bog'lanmagan bo'lsa — full_name bo'yicha employees jadvalida qidirish
-  if (employeeId === null && user.role === "employee" && extra.fullName) {
+  // (admin/manager bo'lmagan barcha rollar uchun, faqat employee emas)
+  if (employeeId === null && user.role !== "admin" && user.role !== "manager" && extra.fullName) {
     const matched = await db
       .select({ id: employeesTable.id })
       .from(employeesTable)
@@ -84,6 +85,17 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
     }
   }
 
+  // Joriy foydalanuvchi Ijro.gov mas'ulimi?
+  let isIjroResponsible = false;
+  if (employeeId !== null) {
+    const [empFlag] = await db
+      .select({ isIjroResponsible: employeesTable.isIjroResponsible })
+      .from(employeesTable)
+      .where(eq(employeesTable.id, employeeId))
+      .limit(1);
+    isIjroResponsible = !!empFlag?.isIjroResponsible;
+  }
+
   res.json({
     id: user.id,
     username: user.username,
@@ -91,6 +103,7 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
     role: user.role,
     departmentId: user.departmentId ?? null,
     employeeId,
+    isIjroResponsible,
     viloyat: extra.viloyat ?? null,
     tuman: extra.tuman ?? null,
     createdAt: new Date().toISOString(),

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Response } from "express";
 import { db } from "@workspace/db";
-import { workPlanTasksTable, workPlansTable } from "@workspace/db";
+import { workPlanTasksTable, workPlansTable, employeesTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
 import multer from "multer";
@@ -79,6 +79,29 @@ router.patch(
 
     const isAdminOrManager = req.user!.role === "admin" || req.user!.role === "manager";
     const isIjroTask = currentTask.category === "ijro";
+
+    // Ijro vazifasi: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
+    if (isIjroTask && !isAdminOrManager) {
+      const [linkedUser] = await db
+        .select({ employeeId: usersTable.employeeId })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.user!.id))
+        .limit(1);
+      const empId = linkedUser?.employeeId ?? null;
+      let isResp = false;
+      if (empId !== null) {
+        const [respEmp] = await db
+          .select({ isIjroResponsible: employeesTable.isIjroResponsible })
+          .from(employeesTable)
+          .where(eq(employeesTable.id, empId))
+          .limit(1);
+        isResp = !!respEmp?.isIjroResponsible;
+      }
+      if (!isResp) {
+        res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin" });
+        return;
+      }
+    }
 
     const { actualVolume, completionPercentage, status, pdfUrl, actualResult, plannedVolume, ijroLate, ijroUnexecuted } = req.body as {
       actualVolume?: string | null;

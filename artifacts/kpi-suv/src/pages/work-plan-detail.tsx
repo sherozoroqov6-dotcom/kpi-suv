@@ -279,6 +279,8 @@ export default function WorkPlanDetail() {
 
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const isAdminOrManager = user?.role === "admin" || user?.role === "manager";
+  const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
+  const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;
 
   const { data: mfylarData = [] } = useQuery({
     queryKey: ["mfylar", selectedTuman],
@@ -1101,6 +1103,8 @@ export default function WorkPlanDetail() {
                     const actual = parseFloat(e.actualVolume || "0");
                     const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;
                     const totalCols = isLocked ? 13 : 12;
+                    const ijroDisabled = !canEditIjroTask;
+                    const inpCls = "w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
                     return (
                       <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
                         <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
@@ -1111,42 +1115,50 @@ export default function WorkPlanDetail() {
                               <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
                                 Ijro.gov bo'yicha kelib tushgan xat-hujjatlar (avto-vazifa)
                               </span>
-                              {!isAdminOrManager && (
-                                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
+                              {ijroDisabled ? (
+                                <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                  🔒 Faqat Ijro.gov mas'uli to'ldira oladi
+                                </span>
+                              ) : (
+                                !isAdminOrManager && (
+                                  <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
+                                )
                               )}
                             </div>
                             <div className="flex flex-wrap items-end gap-3">
                               <label className="text-[11px] text-gray-600 dark:text-gray-400">
                                 <span className="block mb-0.5 font-medium">Kelib tushgan</span>
-                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.plannedVolume}
+                                <input className={inpCls} type="number" min="0" value={e.plannedVolume} disabled={ijroDisabled}
                                   onChange={(ev) => setIJ("plannedVolume", ev.target.value)} />
                               </label>
                               <label className="text-[11px] text-gray-600 dark:text-gray-400">
                                 <span className="block mb-0.5 font-medium">Bajarilgan</span>
-                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.actualVolume}
+                                <input className={inpCls} type="number" min="0" value={e.actualVolume} disabled={ijroDisabled}
                                   onChange={(ev) => setIJ("actualVolume", ev.target.value)} />
                               </label>
                               <label className="text-[11px] text-gray-600 dark:text-gray-400">
                                 <span className="block mb-0.5 font-medium">Muddatidan kech</span>
-                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.ijroLate}
+                                <input className={inpCls} type="number" min="0" value={e.ijroLate} disabled={ijroDisabled}
                                   onChange={(ev) => setIJ("ijroLate", ev.target.value)} />
                               </label>
                               <label className="text-[11px] text-gray-600 dark:text-gray-400">
                                 <span className="block mb-0.5 font-medium">Bajarilmagan</span>
-                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.ijroUnexecuted}
+                                <input className={inpCls} type="number" min="0" value={e.ijroUnexecuted} disabled={ijroDisabled}
                                   onChange={(ev) => setIJ("ijroUnexecuted", ev.target.value)} />
                               </label>
                               <div className="flex flex-col items-center px-3 border-l border-amber-200">
                                 <div className="text-[10px] text-gray-500 uppercase">KPI</div>
                                 <div className="text-base font-bold text-amber-700">{ijroPct !== null ? `${ijroPct}%` : "—"}</div>
                               </div>
-                              <button
-                                onClick={() => saveIjroProgress(task.id)}
-                                disabled={e.saving}
-                                className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
-                              >
-                                {e.saving ? "Saqlanmoqda..." : "Saqlash"}
-                              </button>
+                              {!ijroDisabled && (
+                                <button
+                                  onClick={() => saveIjroProgress(task.id)}
+                                  disabled={e.saving}
+                                  className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                                >
+                                  {e.saving ? "Saqlanmoqda..." : "Saqlash"}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </td>

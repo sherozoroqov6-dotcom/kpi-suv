@@ -48,8 +48,9 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
     : undefined;
 
   // Ijro intizomi avto-vazifasi: agar tizimda kimdir "ijro mas'ul" bo'lsa
-  // va shu rejaning xodimi mas'ul EMAS bo'lsa, hamda hali ijro vazifasi yo'q bo'lsa — yaratamiz.
-  if (emp && !emp.isIjroResponsible) {
+  // va shu rejaning xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa,
+  // hamda hali ijro vazifasi yo'q bo'lsa — yaratamiz.
+  if (emp && !emp.isIjroResponsible && emp.isIjroAssigned) {
     const responsible = await db
       .select({ id: employeesTable.id })
       .from(employeesTable)

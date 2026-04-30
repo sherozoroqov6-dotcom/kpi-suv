@@ -84,6 +84,7 @@ export default function Staff() {
   const { selectedTuman, showAllTumans, viloyatTumanlar } = useRegion();
   const { data: currentUser } = useGetMe();
   const canEdit = currentUser?.role === "admin" || currentUser?.role === "manager";
+  const currentEmpId = (currentUser as any)?.employeeId ?? null;
 
   /* ── Bo'limlar state ── */
   const [deptDialogOpen, setDeptDialogOpen] = useState(false);
@@ -125,6 +126,10 @@ export default function Staff() {
     },
     staleTime: 0,
   });
+
+  // Joriy foydalanuvchi Ijro mas'ulimi? — /auth/me.isIjroResponsible orqali (filtrdan mustaqil)
+  const isCurrentUserIjroResp = !!(currentUser as any)?.isIjroResponsible;
+  const canToggleIjro = canEdit || isCurrentUserIjroResp;
 
   /* ── Bo'limlar mutations ── */
   const createDept = useCreateDepartment({
@@ -183,6 +188,32 @@ export default function Staff() {
       },
     },
   });
+
+  /* ── Ijro mas'uli toggle: faqat admin/manager yoki Ijro mas'ul bossa ── */
+  const toggleIjroMutation = useUpdateEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["employees"] });
+        toast({ title: "Saqlandi", description: "Ijro vazifasi yangilandi" });
+      },
+      onError: () => {
+        toast({ title: "Xato", description: "Yangilab bo'lmadi", variant: "destructive" });
+      },
+    },
+  });
+  const toggleIjroAssign = (e: any) => {
+    toggleIjroMutation.mutate({
+      id: e.id,
+      data: {
+        fullName: e.fullName, position: e.position, departmentId: e.departmentId, status: e.status,
+        phone: e.phone ?? "", email: e.email ?? "", hireDate: e.hireDate ?? "",
+        tuman: e.tuman ?? "", passportSeries: e.passportSeries ?? "", passportNumber: e.passportNumber ?? "",
+        pinfl: e.pinfl ?? "", isIjroResponsible: !!e.isIjroResponsible,
+        isIjroAssigned: !e.isIjroAssigned,
+        username: e.username ?? "",
+      } as any,
+    });
+  };
 
   /* ── Forms ── */
   const deptForm = useForm<DepartmentFormValues>({
@@ -382,6 +413,7 @@ export default function Staff() {
                 <TableHead>{t("col_position")}</TableHead>
                 <TableHead>{t("col_dept")}</TableHead>
                 <TableHead>{t("th_status")}</TableHead>
+                <TableHead className="text-center">Ijro</TableHead>
                 <TableHead>{t("form_login")}</TableHead>
                 <TableHead>{t("card_avg_score")}</TableHead>
                 <TableHead className="w-[60px]" />
@@ -391,7 +423,7 @@ export default function Staff() {
               {empsLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                     ))}
                     <TableCell><Skeleton className="h-8 w-8 rounded-full" /></TableCell>
@@ -399,7 +431,7 @@ export default function Staff() {
                 ))
               ) : employees?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-20 text-center text-muted-foreground text-sm">
+                  <TableCell colSpan={8} className="h-20 text-center text-muted-foreground text-sm">
                     {t("lbl_emp_not_found")}
                   </TableCell>
                 </TableRow>
@@ -417,6 +449,28 @@ export default function Staff() {
                       <Badge variant={e.status === "active" ? "default" : "secondary"}>
                         {e.status === "active" ? t("status_active") : t("status_inactive")}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {e.isIjroResponsible ? (
+                        <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">Mas'ul</Badge>
+                      ) : canToggleIjro ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleIjroAssign(e)}
+                          disabled={toggleIjroMutation.isPending}
+                          className={
+                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition " +
+                            (e.isIjroAssigned
+                              ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                              : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100")
+                          }
+                          title={e.isIjroAssigned ? "Ijro vazifasidan olib tashlash" : "Ijro vazifasiga belgilash"}
+                        >
+                          {e.isIjroAssigned ? "✓ Belgilangan" : "Belgilash"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">{e.isIjroAssigned ? "✓" : "—"}</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {e.username ? (

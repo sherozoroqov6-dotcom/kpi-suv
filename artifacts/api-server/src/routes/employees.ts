@@ -77,6 +77,7 @@ router.get("/employees", requireAuth, async (req: AuthenticatedRequest, res: Res
     passportNumber: e.passportNumber ?? null,
     pinfl: e.pinfl ?? null,
     isIjroResponsible: e.isIjroResponsible ?? false,
+    isIjroAssigned: e.isIjroAssigned ?? false,
     username: userMap.get(e.id) ?? null,
     averageScore: avgMap.get(e.id) ?? null,
     createdAt: e.createdAt.toISOString(),
@@ -157,16 +158,21 @@ router.get("/employees/approver", requireAuth, async (req: AuthenticatedRequest,
 // ─── POST /employees ─────────────────────────────────────────────────────────
 
 router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user!.role;
+  if (role !== "admin" && role !== "manager") {
+    res.status(403).json({ error: "Faqat admin yoki manager xodim qo'sha oladi" });
+    return;
+  }
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl, isIjroResponsible,
+    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
-    isIjroResponsible?: boolean;
+    isIjroResponsible?: boolean; isIjroAssigned?: boolean;
     username?: string; password?: string;
   };
 
@@ -202,6 +208,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
       passportNumber: passportNumber ?? null,
       pinfl: pinfl ?? null,
       isIjroResponsible: isIjroResponsible ?? false,
+      isIjroAssigned: isIjroAssigned ?? false,
     })
     .returning();
 
@@ -237,6 +244,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
+    isIjroAssigned: emp.isIjroAssigned ?? false,
     username: username ?? null,
     averageScore: null,
     createdAt: emp.createdAt.toISOString(),
@@ -285,6 +293,7 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
+    isIjroAssigned: emp.isIjroAssigned ?? false,
     username: linked[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),
@@ -297,14 +306,14 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
   const id = parseInt(req.params["id"] as string);
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl, isIjroResponsible,
+    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
-    isIjroResponsible?: boolean;
+    isIjroResponsible?: boolean; isIjroAssigned?: boolean;
     username?: string; password?: string;
   };
 
@@ -313,18 +322,93 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     return;
   }
 
+  // Joriy holat — flaglarni yo'qotmaslik uchun
+  const [existing] = await db
+    .select()
+    .from(employeesTable)
+    .where(eq(employeesTable.id, id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Xodim topilmadi" });
+    return;
+  }
+
+  // Avtorizatsiya:
+  //  • admin/manager — to'liq tahrir
+  //  • Ijro.gov mas'uli — faqat isIjroAssigned ni almashtirishi mumkin (boshqa maydonlar saqlanadi)
+  //  • Boshqalar — taqiqlanadi
+  const role = req.user!.role;
+  const isAdminOrManager = role === "admin" || role === "manager";
+
+  let isIjroRespUser = false;
+  if (!isAdminOrManager) {
+    const [linkedUser] = await db
+      .select({ employeeId: usersTable.employeeId })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.id))
+      .limit(1);
+    if (linkedUser?.employeeId != null) {
+      const [meEmp] = await db
+        .select({ isIjroResponsible: employeesTable.isIjroResponsible })
+        .from(employeesTable)
+        .where(eq(employeesTable.id, linkedUser.employeeId))
+        .limit(1);
+      isIjroRespUser = !!meEmp?.isIjroResponsible;
+    }
+  }
+
+  if (!isAdminOrManager && !isIjroRespUser) {
+    res.status(403).json({ error: "Xodim ma'lumotlarini tahrirlashga ruxsat yo'q" });
+    return;
+  }
+
+  // Ijro mas'uli isIjroResponsible'ni o'zgartira olmaydi
+  let nextIsResp = existing.isIjroResponsible;
+  if (isIjroResponsible !== undefined && isIjroResponsible !== existing.isIjroResponsible) {
+    if (!isAdminOrManager) {
+      res.status(403).json({ error: "Faqat admin/manager 'Ijro.gov mas'uli' bayrog'ini o'zgartirishi mumkin" });
+      return;
+    }
+    nextIsResp = isIjroResponsible;
+  }
+  let nextIsAssigned = existing.isIjroAssigned;
+  if (isIjroAssigned !== undefined && isIjroAssigned !== existing.isIjroAssigned) {
+    nextIsAssigned = isIjroAssigned; // admin/manager yoki ijro mas'uli — ikkalasi ham ruxsat etilgan
+  }
+
+  // Admin/manager bo'lmagan ijro mas'uli — boshqa maydonlarni o'zgartira olmaydi
+  const setData = isAdminOrManager
+    ? {
+        fullName, position, departmentId,
+        phone: phone ?? null, email: email ?? null,
+        hireDate: hireDate ?? null, status,
+        tuman: tuman ?? null,
+        passportSeries: passportSeries ?? null,
+        passportNumber: passportNumber ?? null,
+        pinfl: pinfl ?? null,
+        isIjroResponsible: nextIsResp,
+        isIjroAssigned: nextIsAssigned,
+      }
+    : {
+        // Faqat isIjroAssigned o'zgaradi, qolganlari mavjud qiymatda saqlanadi
+        fullName: existing.fullName,
+        position: existing.position,
+        departmentId: existing.departmentId,
+        phone: existing.phone,
+        email: existing.email,
+        hireDate: existing.hireDate,
+        status: existing.status,
+        tuman: existing.tuman,
+        passportSeries: existing.passportSeries,
+        passportNumber: existing.passportNumber,
+        pinfl: existing.pinfl,
+        isIjroResponsible: existing.isIjroResponsible,
+        isIjroAssigned: nextIsAssigned,
+      };
+
   const [emp] = await db
     .update(employeesTable)
-    .set({
-      fullName, position, departmentId,
-      phone: phone ?? null, email: email ?? null,
-      hireDate: hireDate ?? null, status,
-      tuman: tuman ?? null,
-      passportSeries: passportSeries ?? null,
-      passportNumber: passportNumber ?? null,
-      pinfl: pinfl ?? null,
-      isIjroResponsible: isIjroResponsible ?? false,
-    })
+    .set(setData)
     .where(eq(employeesTable.id, id))
     .returning();
 
@@ -333,14 +417,14 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     return;
   }
 
-  // Sync linked user
+  // Sync linked user — faqat admin/manager uchun
   const existingLinked = await db
     .select()
     .from(usersTable)
     .where(eq(usersTable.employeeId, id))
     .limit(1);
 
-  if (username) {
+  if (isAdminOrManager && username) {
     if (existingLinked.length > 0) {
       const updateData: Record<string, unknown> = {
         fullName: emp.fullName,
@@ -397,6 +481,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
+    isIjroAssigned: emp.isIjroAssigned ?? false,
     username: linkedAfter[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),
@@ -406,6 +491,11 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
 // ─── DELETE /employees/:id ───────────────────────────────────────────────────
 
 router.delete("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user!.role;
+  if (role !== "admin" && role !== "manager") {
+    res.status(403).json({ error: "Faqat admin yoki manager xodimni o'chira oladi" });
+    return;
+  }
   const id = parseInt(req.params["id"] as string);
 
   await db.delete(usersTable).where(eq(usersTable.employeeId, id));

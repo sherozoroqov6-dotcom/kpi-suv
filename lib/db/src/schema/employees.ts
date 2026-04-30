@@ -16,6 +16,7 @@ export const employeesTable = pgTable("employees", {
   passportNumber: text("passport_number"),
   pinfl: text("pinfl"),
   isIjroResponsible: boolean("is_ijro_responsible").notNull().default(false),
+  isIjroAssigned: boolean("is_ijro_assigned").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

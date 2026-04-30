@@ -59,6 +59,15 @@ workspace/
 - `work_plan_tasks` — ish reja vazifalari
 - `mfylar` — mahalla fuqarolik yig'inlari (MFY)
 
+## Auto-migratsiya (server start)
+
+`artifacts/api-server/src/lib/auto-migrate.ts` — server `app.listen()`'dan oldin idempotent `ALTER TABLE ADD COLUMN IF NOT EXISTS` ishga tushiradi. Render auto-deploy uchun zarur: yangi kod productionga chiqqanda DB schema avtomatik yangilanadi (qo'lda `psql` migrate qilish shart emas). Hech narsa o'chirilmaydi (faqat ADD COLUMN), foydalanuvchilar/xodimlar/bo'limlar ma'lumotlari saqlanadi. Hozirgi migratsiyalar:
+- `employees`: `is_ijro_responsible`, `is_ijro_assigned`, `is_mehnat_responsible` (BOOLEAN NOT NULL DEFAULT FALSE)
+- `work_plan_tasks`: `category` (TEXT), `ijro_late`, `ijro_unexecuted`, `mehnat_work_hours`, `mehnat_late_minutes`, `mehnat_late_days` (INTEGER), `mehnat_result` (TEXT)
+- Rename: `title='Mehnat intizomi (avto-vazifa)'` → `'Malaka talabi (avto-vazifa)'` (UPDATE — non-fatal, faqat aynan o'sha matn bo'lganlarni yangilaydi).
+
+Yangi schema o'zgarishi qo'shsangiz: `MIGRATIONS` array'iga `ADD COLUMN IF NOT EXISTS` qatori qo'shing. Migrate fail bo'lsa, server ishga tushmaydi (process.exit 1) — bu xavfsizlik chorasi.
+
 ## Frontend sahifalari
 
 | Yo'l | Sahifa |

@@ -46,8 +46,18 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
 
 const RENAMES: Array<{ name: string; sql: string }> = [
   {
+    name: "backfill_mehnat_category_for_legacy_auto_tasks",
+    sql: `UPDATE work_plan_tasks
+          SET category = 'mehnat'
+          WHERE category IS NULL
+            AND title = 'Mehnat intizomi (avto-vazifa)'`,
+  },
+  {
     name: "rename_mehnat_intizomi_to_malaka_talabi",
-    sql: `UPDATE work_plan_tasks SET title = 'Malaka talabi (avto-vazifa)' WHERE title = 'Mehnat intizomi (avto-vazifa)'`,
+    sql: `UPDATE work_plan_tasks
+          SET title = 'Malaka talabi (avto-vazifa)'
+          WHERE title = 'Mehnat intizomi (avto-vazifa)'
+            AND category = 'mehnat'`,
   },
 ];
 

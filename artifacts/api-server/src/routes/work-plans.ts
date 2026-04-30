@@ -50,7 +50,8 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
   // Ijro intizomi avto-vazifasi: agar tizimda kimdir "ijro mas'ul" bo'lsa
   // va shu rejaning xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa,
   // hamda hali ijro vazifasi yo'q bo'lsa — yaratamiz.
-  if (emp && !emp.isIjroResponsible && emp.isIjroAssigned) {
+  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned);
+  if (ijroEligible) {
     const responsible = await db
       .select({ id: employeesTable.id })
       .from(employeesTable)
@@ -75,6 +76,11 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
           .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
       }
     }
+  }
+  // Agar xodim endi Ijro mas'uli tomonidan tanlanmagan bo'lsa, ijro qatorini javobdan
+  // yashiramiz (DB'dagi ma'lumot saqlanadi — qayta belgilansa, qator qaytadi).
+  if (!ijroEligible) {
+    tasks = tasks.filter((t) => t.category !== "ijro");
   }
   const dept = emp
     ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1)

@@ -1155,17 +1155,13 @@ export default function WorkPlanDetail() {
                   const sel = "w-full border rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400";
                   const setIE = (field: string, val: any) => setInlineEditTask((prev: any) => ({ ...prev, [field]: val }));
 
-                  // ── Maxsus ijro/mehnat intizomi qatori (yonma-yon) ──────
-                  const ijroTaskAll = plan.tasks?.find((t: any) => t.category === "ijro");
-                  const mehnatTaskAll = plan.tasks?.find((t: any) => t.category === "mehnat");
-                  // Agar mehnat alohida render bo'lsa va ijro mavjud bo'lsa — uni o'tkazib yuboramiz (ijro qatorida ko'rsatilgan).
-                  if (task.category === "mehnat" && ijroTaskAll) return null;
-
+                  // ── Maxsus ijro/mehnat intizomi qatori (alohida qatorlarda) ──────
                   if (task.category === "ijro" || task.category === "mehnat") {
                     const totalCols = isLocked ? 13 : 12;
 
-                    // Ijro bloki
-                    const ijroBlock = ijroTaskAll ? (() => {
+                    // Ijro bloki — faqat shu qator ijro bo'lsa render qilinadi
+                    const ijroBlock = task.category === "ijro" ? (() => {
+                      const ijroTaskAll = task;
                       const e = ijroEdits[ijroTaskAll.id] ?? { plannedVolume: "", actualVolume: "", ijroLate: "", ijroUnexecuted: "", saving: false };
                       const setIJ = (field: string, val: string) =>
                         setIjroEdits((p) => ({ ...p, [ijroTaskAll.id]: { ...(p[ijroTaskAll.id] ?? e), [field]: val } }));
@@ -1231,7 +1227,8 @@ export default function WorkPlanDetail() {
                     })() : null;
 
                     // Malaka talabi bloki — 0..5 ball, KPI = (ball/5)*100
-                    const mehnatBlock = mehnatTaskAll ? (() => {
+                    const mehnatBlock = task.category === "mehnat" ? (() => {
+                      const mehnatTaskAll = task;
                       const m = mehnatEdits[mehnatTaskAll.id] ?? { workHours: "", lateMinutes: "", lateDays: "", result: "", saving: false };
                       const setM = (field: string, val: string) =>
                         setMehnatEdits((p) => ({ ...p, [mehnatTaskAll.id]: { ...(p[mehnatTaskAll.id] ?? m), [field]: val } }));
@@ -1301,23 +1298,7 @@ export default function WorkPlanDetail() {
                       );
                     })() : null;
 
-                    // Render: ijro va mehnat bo'lsa ikkita td yonma-yon, faqat bittasi bo'lsa to'liq kenglik
-                    if (ijroBlock && mehnatBlock) {
-                      const halfL = Math.ceil(totalCols / 2);
-                      const halfR = totalCols - halfL;
-                      return (
-                        <tr key={task.id} className="border-b hover:bg-gray-50/50">
-                          <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
-                          <td colSpan={halfL} className="px-3 py-3 border-r bg-amber-50/40 dark:bg-amber-950/10 align-top">
-                            {ijroBlock}
-                          </td>
-                          <td colSpan={halfR} className="px-3 py-3 border-r bg-emerald-50/40 dark:bg-emerald-950/10 align-top">
-                            {mehnatBlock}
-                          </td>
-                        </tr>
-                      );
-                    }
-                    // Faqat ijro
+                    // Render: har bir maxsus qator (Mehnat / Ijro) o'z alohida qatorida
                     if (ijroBlock) {
                       return (
                         <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
@@ -1326,7 +1307,6 @@ export default function WorkPlanDetail() {
                         </tr>
                       );
                     }
-                    // Faqat mehnat
                     return (
                       <tr key={task.id} className="border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70">
                         <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>

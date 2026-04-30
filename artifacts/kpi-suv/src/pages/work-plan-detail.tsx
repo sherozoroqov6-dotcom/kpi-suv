@@ -283,7 +283,8 @@ export default function WorkPlanDetail() {
   const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
   const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
   const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;
-  const canEditMehnatTask = isAdminOrManager || isMehnatResponsibleUser;
+  // Malaka talabi: faqat Mehnat intizomi mas'uli kirita oladi (admin/manager ham yo'q)
+  const canEditMehnatTask = isMehnatResponsibleUser;
 
   const { data: mfylarData = [] } = useQuery({
     queryKey: ["mfylar", selectedTuman],
@@ -1249,7 +1250,7 @@ export default function WorkPlanDetail() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Malaka talabi</span>
                             <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                              Xodimning oylik malaka talabi (0–5 ball, 5 ball = 100%)
+                              Xodimning malaka talabi
                             </span>
                             {mehnatDisabled && (
                               <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
@@ -1268,7 +1269,16 @@ export default function WorkPlanDetail() {
                                 step="0.1"
                                 value={m.result}
                                 disabled={mehnatDisabled}
-                                onChange={(ev) => setM("result", ev.target.value)}
+                                onChange={(ev) => {
+                                  const raw = ev.target.value;
+                                  if (raw === "") { setM("result", ""); return; }
+                                  const n = Number(raw.replace(",", "."));
+                                  if (isNaN(n)) { setM("result", raw); return; }
+                                  // 5 dan yuqori yozish imkoni yo'q — 5 ga cheklaymiz
+                                  if (n > 5) { setM("result", "5"); return; }
+                                  if (n < 0) { setM("result", "0"); return; }
+                                  setM("result", raw);
+                                }}
                                 placeholder="masalan 4.5"
                               />
                             </label>

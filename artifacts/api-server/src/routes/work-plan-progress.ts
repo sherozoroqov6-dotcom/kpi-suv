@@ -82,8 +82,8 @@ router.patch(
     const isMehnatTask = currentTask.category === "mehnat";
 
     // Ijro vazifasi: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
-    // Mehnat vazifasi: faqat Mehnat intizomi mas'uli (yoki admin/manager) yangilashi mumkin
-    if ((isIjroTask || isMehnatTask) && !isAdminOrManager) {
+    // Mehnat (Malaka talabi) vazifasi: FAQAT Mehnat intizomi mas'uli (admin/manager ham YO'Q)
+    if (isIjroTask || isMehnatTask) {
       const [linkedUser] = await db
         .select({ employeeId: usersTable.employeeId })
         .from(usersTable)
@@ -104,12 +104,14 @@ router.patch(
         isIjroResp = !!respEmp?.isIjroResponsible;
         isMehnatResp = !!respEmp?.isMehnatResponsible;
       }
-      if (isIjroTask && !isIjroResp) {
+      // Ijro: admin/manager yoki Ijro mas'uli kirita oladi
+      if (isIjroTask && !isAdminOrManager && !isIjroResp) {
         res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin" });
         return;
       }
+      // Mehnat: faqat Mehnat mas'uli kirita oladi (admin/manager bo'lsa ham yo'q)
       if (isMehnatTask && !isMehnatResp) {
-        res.status(403).json({ error: "Malaka talabi vazifasini faqat Mehnat mas'uli yangilashi mumkin" });
+        res.status(403).json({ error: "Xodimning malaka talabini faqat Mehnat intizomi bo'yicha mas'ul kirita oladi" });
         return;
       }
     }
@@ -199,10 +201,13 @@ router.patch(
             res.status(400).json({ error: "Ball son bo'lishi shart (0–5 oralig'ida)" });
             return;
           }
-          // 0–5 oralig'iga clamp qilamiz va normallashgan ko'rinishda saqlaymiz
-          const clamped = Math.min(5, Math.max(0, ball));
-          updateData.mehnatResult = String(clamped);
-          updateData.completionPercentage = Math.round((clamped / 5) * 100);
+          // 5 ball'dan yuqori yoki 0'dan past — qabul qilinmaydi
+          if (ball < 0 || ball > 5) {
+            res.status(400).json({ error: "Ball 0–5 oralig'ida bo'lishi shart (5 ball'dan yuqori berilmaydi)" });
+            return;
+          }
+          updateData.mehnatResult = String(ball);
+          updateData.completionPercentage = Math.round((ball / 5) * 100);
         }
       }
     }

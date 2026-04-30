@@ -17,6 +17,7 @@ export const employeesTable = pgTable("employees", {
   pinfl: text("pinfl"),
   isIjroResponsible: boolean("is_ijro_responsible").notNull().default(false),
   isIjroAssigned: boolean("is_ijro_assigned").notNull().default(false),
+  isMehnatResponsible: boolean("is_mehnat_responsible").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

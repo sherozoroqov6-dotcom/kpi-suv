@@ -78,6 +78,7 @@ router.get("/employees", requireAuth, async (req: AuthenticatedRequest, res: Res
     pinfl: e.pinfl ?? null,
     isIjroResponsible: e.isIjroResponsible ?? false,
     isIjroAssigned: e.isIjroAssigned ?? false,
+    isMehnatResponsible: e.isMehnatResponsible ?? false,
     username: userMap.get(e.id) ?? null,
     averageScore: avgMap.get(e.id) ?? null,
     createdAt: e.createdAt.toISOString(),
@@ -165,14 +166,14 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
   }
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned,
+    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned, isMehnatResponsible,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
-    isIjroResponsible?: boolean; isIjroAssigned?: boolean;
+    isIjroResponsible?: boolean; isIjroAssigned?: boolean; isMehnatResponsible?: boolean;
     username?: string; password?: string;
   };
 
@@ -209,6 +210,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
       pinfl: pinfl ?? null,
       isIjroResponsible: isIjroResponsible ?? false,
       isIjroAssigned: isIjroAssigned ?? false,
+      isMehnatResponsible: isMehnatResponsible ?? false,
     })
     .returning();
 
@@ -245,6 +247,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
     isIjroAssigned: emp.isIjroAssigned ?? false,
+    isMehnatResponsible: emp.isMehnatResponsible ?? false,
     username: username ?? null,
     averageScore: null,
     createdAt: emp.createdAt.toISOString(),
@@ -294,6 +297,7 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
     isIjroAssigned: emp.isIjroAssigned ?? false,
+    isMehnatResponsible: emp.isMehnatResponsible ?? false,
     username: linked[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),
@@ -306,14 +310,14 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
   const id = parseInt(req.params["id"] as string);
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned,
+    passportSeries, passportNumber, pinfl, isIjroResponsible, isIjroAssigned, isMehnatResponsible,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
-    isIjroResponsible?: boolean; isIjroAssigned?: boolean;
+    isIjroResponsible?: boolean; isIjroAssigned?: boolean; isMehnatResponsible?: boolean;
     username?: string; password?: string;
   };
 
@@ -375,6 +379,15 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
   if (isIjroAssigned !== undefined && isIjroAssigned !== existing.isIjroAssigned) {
     nextIsAssigned = isIjroAssigned; // admin/manager yoki ijro mas'uli — ikkalasi ham ruxsat etilgan
   }
+  // Mehnat mas'uli flagini faqat admin/manager o'zgartira oladi
+  let nextIsMehnatResp = existing.isMehnatResponsible;
+  if (isMehnatResponsible !== undefined && isMehnatResponsible !== existing.isMehnatResponsible) {
+    if (!isAdminOrManager) {
+      res.status(403).json({ error: "Faqat admin/manager 'Mehnat intizomi mas'uli' bayrog'ini o'zgartirishi mumkin" });
+      return;
+    }
+    nextIsMehnatResp = isMehnatResponsible;
+  }
 
   // Admin/manager bo'lmagan ijro mas'uli — boshqa maydonlarni o'zgartira olmaydi
   const setData = isAdminOrManager
@@ -388,6 +401,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
         pinfl: pinfl ?? null,
         isIjroResponsible: nextIsResp,
         isIjroAssigned: nextIsAssigned,
+        isMehnatResponsible: nextIsMehnatResp,
       }
     : {
         // Faqat isIjroAssigned o'zgaradi, qolganlari mavjud qiymatda saqlanadi
@@ -404,6 +418,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
         pinfl: existing.pinfl,
         isIjroResponsible: existing.isIjroResponsible,
         isIjroAssigned: nextIsAssigned,
+        isMehnatResponsible: existing.isMehnatResponsible,
       };
 
   const [emp] = await db
@@ -482,6 +497,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     pinfl: emp.pinfl ?? null,
     isIjroResponsible: emp.isIjroResponsible ?? false,
     isIjroAssigned: emp.isIjroAssigned ?? false,
+    isMehnatResponsible: emp.isMehnatResponsible ?? false,
     username: linkedAfter[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),

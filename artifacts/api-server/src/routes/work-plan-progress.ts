@@ -81,7 +81,8 @@ router.patch(
     const isIjroTask = currentTask.category === "ijro";
     const isMehnatTask = currentTask.category === "mehnat";
 
-    // Ijro va Mehnat vazifalari: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
+    // Ijro vazifasi: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
+    // Mehnat vazifasi: faqat Mehnat intizomi mas'uli (yoki admin/manager) yangilashi mumkin
     if ((isIjroTask || isMehnatTask) && !isAdminOrManager) {
       const [linkedUser] = await db
         .select({ employeeId: usersTable.employeeId })
@@ -89,18 +90,26 @@ router.patch(
         .where(eq(usersTable.id, req.user!.id))
         .limit(1);
       const empId = linkedUser?.employeeId ?? null;
-      let isResp = false;
+      let isIjroResp = false;
+      let isMehnatResp = false;
       if (empId !== null) {
         const [respEmp] = await db
-          .select({ isIjroResponsible: employeesTable.isIjroResponsible })
+          .select({
+            isIjroResponsible: employeesTable.isIjroResponsible,
+            isMehnatResponsible: employeesTable.isMehnatResponsible,
+          })
           .from(employeesTable)
           .where(eq(employeesTable.id, empId))
           .limit(1);
-        isResp = !!respEmp?.isIjroResponsible;
+        isIjroResp = !!respEmp?.isIjroResponsible;
+        isMehnatResp = !!respEmp?.isMehnatResponsible;
       }
-      if (!isResp) {
-        const label = isIjroTask ? "Ijro intizomi" : "Mehnat intizomi";
-        res.status(403).json({ error: `${label} vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin` });
+      if (isIjroTask && !isIjroResp) {
+        res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin" });
+        return;
+      }
+      if (isMehnatTask && !isMehnatResp) {
+        res.status(403).json({ error: "Mehnat intizomi vazifasini faqat Mehnat intizomi bo'yicha mas'ul yangilashi mumkin" });
         return;
       }
     }

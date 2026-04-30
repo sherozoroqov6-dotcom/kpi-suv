@@ -85,15 +85,20 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
     }
   }
 
-  // Joriy foydalanuvchi Ijro.gov mas'ulimi?
+  // Joriy foydalanuvchi Ijro.gov / Mehnat mas'ulimi?
   let isIjroResponsible = false;
+  let isMehnatResponsible = false;
   if (employeeId !== null) {
     const [empFlag] = await db
-      .select({ isIjroResponsible: employeesTable.isIjroResponsible })
+      .select({
+        isIjroResponsible: employeesTable.isIjroResponsible,
+        isMehnatResponsible: employeesTable.isMehnatResponsible,
+      })
       .from(employeesTable)
       .where(eq(employeesTable.id, employeeId))
       .limit(1);
     isIjroResponsible = !!empFlag?.isIjroResponsible;
+    isMehnatResponsible = !!empFlag?.isMehnatResponsible;
   }
 
   res.json({
@@ -104,6 +109,7 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
     departmentId: user.departmentId ?? null,
     employeeId,
     isIjroResponsible,
+    isMehnatResponsible,
     viloyat: extra.viloyat ?? null,
     tuman: extra.tuman ?? null,
     createdAt: new Date().toISOString(),

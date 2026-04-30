@@ -71,6 +71,7 @@ const employeeSchema = z.object({
   passportNumber: z.string().max(10).optional(),
   pinfl: z.string().max(14).optional(),
   isIjroResponsible: z.boolean().optional(),
+  isMehnatResponsible: z.boolean().optional(),
   username: z.string().min(3, "Login kamida 3 ta belgi").optional().or(z.literal("")),
   password: z.string().min(4, "Parol kamida 4 ta belgi").optional().or(z.literal("")),
 });
@@ -209,6 +210,7 @@ export default function Staff() {
         phone: e.phone ?? "", email: e.email ?? "", hireDate: e.hireDate ?? "",
         tuman: e.tuman ?? "", passportSeries: e.passportSeries ?? "", passportNumber: e.passportNumber ?? "",
         pinfl: e.pinfl ?? "", isIjroResponsible: !!e.isIjroResponsible,
+        isMehnatResponsible: !!e.isMehnatResponsible,
         isIjroAssigned: !e.isIjroAssigned,
         username: e.username ?? "",
       } as any,
@@ -226,7 +228,7 @@ export default function Staff() {
     defaultValues: {
       fullName: "", position: "", departmentId: 0, status: "active",
       phone: "", email: "", hireDate: new Date().toISOString().split("T")[0],
-      tuman: "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, username: "", password: "",
+      tuman: "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, isMehnatResponsible: false, username: "", password: "",
     },
   });
 
@@ -252,7 +254,7 @@ export default function Staff() {
     empForm.reset({
       fullName: "", position: "", departmentId: 0, status: "active",
       phone: "", email: "", hireDate: new Date().toISOString().split("T")[0],
-      tuman: selectedTuman || "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, username: "", password: "",
+      tuman: selectedTuman || "", passportSeries: "", passportNumber: "", pinfl: "", isIjroResponsible: false, isMehnatResponsible: false, username: "", password: "",
     });
     setEmpDialogOpen(true);
   };
@@ -262,7 +264,7 @@ export default function Staff() {
       fullName: e.fullName, position: e.position, departmentId: e.departmentId, status: e.status,
       phone: e.phone || "", email: e.email || "", hireDate: e.hireDate ? e.hireDate.split("T")[0] : "",
       tuman: e.tuman || "", passportSeries: e.passportSeries || "", passportNumber: e.passportNumber || "",
-      pinfl: e.pinfl || "", isIjroResponsible: !!e.isIjroResponsible, username: e.username || "", password: "",
+      pinfl: e.pinfl || "", isIjroResponsible: !!e.isIjroResponsible, isMehnatResponsible: !!e.isMehnatResponsible, username: e.username || "", password: "",
     });
     setEmpDialogOpen(true);
   };
@@ -708,6 +710,27 @@ export default function Staff() {
                       </FormLabel>
                       <p className="text-xs text-amber-700">
                         Belgilansa, qolgan barcha xodimlarning ish rejasiga "Ijro intizomi" bo'yicha avto-vazifa qo'shiladi.
+                      </p>
+                    </div>
+                  </FormItem>
+                )} />
+
+                <FormField control={empForm.control} name="isMehnatResponsible" render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={!!field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-emerald-900 font-medium">
+                        Mehnat intizomi bo'yicha mas'ul
+                      </FormLabel>
+                      <p className="text-xs text-emerald-700">
+                        Belgilansa, qolgan barcha xodimlarning ish rejasiga "Mehnat intizomi" bo'yicha avto-vazifa qo'shiladi.
                       </p>
                     </div>
                   </FormItem>

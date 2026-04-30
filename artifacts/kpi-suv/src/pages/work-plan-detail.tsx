@@ -281,7 +281,9 @@ export default function WorkPlanDetail() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const isAdminOrManager = user?.role === "admin" || user?.role === "manager";
   const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
+  const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
   const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;
+  const canEditMehnatTask = isAdminOrManager || isMehnatResponsibleUser;
 
   const { data: mfylarData = [] } = useQuery({
     queryKey: ["mfylar", selectedTuman],
@@ -1238,7 +1240,7 @@ export default function WorkPlanDetail() {
                       mehnatPct = 100;
                     }
                     const totalCols = isLocked ? 13 : 12;
-                    const mehnatDisabled = !canEditIjroTask;
+                    const mehnatDisabled = !canEditMehnatTask;
                     const mInpCls = "w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
                     return (
                       <tr key={task.id} className="border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70">
@@ -1252,7 +1254,7 @@ export default function WorkPlanDetail() {
                               </span>
                               {mehnatDisabled && (
                                 <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
-                                  🔒 Faqat Ijro.gov mas'uli to'ldira oladi
+                                  🔒 Faqat Mehnat intizomi mas'uli to'ldira oladi
                                 </span>
                               )}
                             </div>

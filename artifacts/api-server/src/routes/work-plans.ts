@@ -51,17 +51,24 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
     ? (await db.select().from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1))[0]
     : undefined;
 
-  // Tizimda Ijro mas'uli mavjudmi (mehnat va ijro avto-vazifalari uchun zarur)
-  const responsible = await db
+  // Tizimda Ijro / Mehnat mas'uli mavjudmi
+  const ijroResp = await db
     .select({ id: employeesTable.id })
     .from(employeesTable)
     .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, "active")))
     .limit(1);
-  const hasResponsible = responsible.length > 0;
+  const hasIjroResponsible = ijroResp.length > 0;
+
+  const mehnatResp = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.isMehnatResponsible, true), eq(employeesTable.status, "active")))
+    .limit(1);
+  const hasMehnatResponsible = mehnatResp.length > 0;
 
   // Ijro intizomi avto-vazifasi: agar tizimda Ijro mas'uli bor bo'lsa va shu rejaning
   // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa — yaratamiz.
-  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasResponsible);
+  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasIjroResponsible);
   if (ijroEligible && !tasks.some((t) => t.category === "ijro")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,
@@ -79,9 +86,9 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
       .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
   }
 
-  // Mehnat intizomi avto-vazifasi: tizimda Ijro mas'uli mavjud bo'lsa, qolgan barcha
-  // xodimlarga (Ijro mas'ulining o'zidan tashqari) avto-vazifa qo'shamiz.
-  const mehnatEligible = !!(emp && !emp.isIjroResponsible && hasResponsible);
+  // Mehnat intizomi avto-vazifasi: tizimda Mehnat mas'uli bor bo'lsa, mas'ulning
+  // o'zidan tashqari barcha xodimlarga avto-vazifa qo'shamiz.
+  const mehnatEligible = !!(emp && !emp.isMehnatResponsible && hasMehnatResponsible);
   if (mehnatEligible && !tasks.some((t) => t.category === "mehnat")) {
     await db.insert(workPlanTasksTable).values({
       planId: plan.id,
@@ -368,6 +375,13 @@ router.put("/work-plans/:id/tasks/:taskId", requireAuth, async (req: Authenticat
   const taskId = parseInt(req.params["taskId"] as string);
   const t = req.body as TaskInput;
   if (!t.title) { res.status(400).json({ error: "Sarlavha kiritilishi shart" }); return; }
+  // Auto-vazifalarni (ijro/mehnat) bu route orqali tahrirlash mumkin emas — faqat /progress orqali.
+  const [existingTask] = await db.select({ category: workPlanTasksTable.category })
+    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);
+  if (existingTask && (existingTask.category === "ijro" || existingTask.category === "mehnat")) {
+    res.status(403).json({ error: "Avto-vazifa (ijro/mehnat) faqat o'zining maxsus interfeysi orqali tahrirlanadi" });
+    return;
+  }
   const [task] = await db.update(workPlanTasksTable).set({
     orderNum: t.orderNum ?? 1,
     isSection: t.isSection ?? false,
@@ -397,6 +411,13 @@ router.delete("/work-plans/:id/tasks/:taskId", requireAuth, async (req: Authenti
   if (planCheck.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
   if (planCheck[0].status !== "draft" && planCheck[0].status !== "rejected") { res.status(403).json({ error: "Bu ish rejani tahrirlash mumkin emas" }); return; }
   const taskId = parseInt(req.params["taskId"] as string);
+  // Auto-vazifalarni (ijro/mehnat) o'chirish mumkin emas — ular tizim tomonidan boshqariladi.
+  const [existingTask] = await db.select({ category: workPlanTasksTable.category })
+    .from(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).limit(1);
+  if (existingTask && (existingTask.category === "ijro" || existingTask.category === "mehnat")) {
+    res.status(403).json({ error: "Avto-vazifa (ijro/mehnat) o'chirib tashlanmaydi" });
+    return;
+  }
   const deleted = await db.delete(workPlanTasksTable).where(eq(workPlanTasksTable.id, taskId)).returning();
   if (deleted.length === 0) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
   res.json({ message: "Vazifa o'chirildi" });

@@ -37,6 +37,9 @@ export const workPlanTasksTable = pgTable("work_plan_tasks", {
   actualResult: text("actual_result"),
   status: text("status").notNull().default("pending"),
   pdfUrl: text("pdf_url"),
+  category: text("category"),
+  ijroLate: integer("ijro_late"),
+  ijroUnexecuted: integer("ijro_unexecuted"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

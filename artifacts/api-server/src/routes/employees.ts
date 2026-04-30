@@ -76,6 +76,7 @@ router.get("/employees", requireAuth, async (req: AuthenticatedRequest, res: Res
     passportSeries: e.passportSeries ?? null,
     passportNumber: e.passportNumber ?? null,
     pinfl: e.pinfl ?? null,
+    isIjroResponsible: e.isIjroResponsible ?? false,
     username: userMap.get(e.id) ?? null,
     averageScore: avgMap.get(e.id) ?? null,
     createdAt: e.createdAt.toISOString(),
@@ -158,13 +159,14 @@ router.get("/employees/approver", requireAuth, async (req: AuthenticatedRequest,
 router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl,
+    passportSeries, passportNumber, pinfl, isIjroResponsible,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
+    isIjroResponsible?: boolean;
     username?: string; password?: string;
   };
 
@@ -199,6 +201,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
       passportSeries: passportSeries ?? null,
       passportNumber: passportNumber ?? null,
       pinfl: pinfl ?? null,
+      isIjroResponsible: isIjroResponsible ?? false,
     })
     .returning();
 
@@ -233,6 +236,7 @@ router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Re
     passportSeries: emp.passportSeries ?? null,
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
+    isIjroResponsible: emp.isIjroResponsible ?? false,
     username: username ?? null,
     averageScore: null,
     createdAt: emp.createdAt.toISOString(),
@@ -280,6 +284,7 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportSeries: emp.passportSeries ?? null,
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
+    isIjroResponsible: emp.isIjroResponsible ?? false,
     username: linked[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),
@@ -292,13 +297,14 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
   const id = parseInt(req.params["id"] as string);
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,
-    passportSeries, passportNumber, pinfl,
+    passportSeries, passportNumber, pinfl, isIjroResponsible,
     username, password,
   } = req.body as {
     fullName?: string; position?: string; departmentId?: number;
     phone?: string | null; email?: string | null; hireDate?: string | null;
     status?: string; tuman?: string | null;
     passportSeries?: string | null; passportNumber?: string | null; pinfl?: string | null;
+    isIjroResponsible?: boolean;
     username?: string; password?: string;
   };
 
@@ -317,6 +323,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
       passportSeries: passportSeries ?? null,
       passportNumber: passportNumber ?? null,
       pinfl: pinfl ?? null,
+      isIjroResponsible: isIjroResponsible ?? false,
     })
     .where(eq(employeesTable.id, id))
     .returning();
@@ -389,6 +396,7 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportSeries: emp.passportSeries ?? null,
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
+    isIjroResponsible: emp.isIjroResponsible ?? false,
     username: linkedAfter[0]?.username ?? null,
     averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
     createdAt: emp.createdAt.toISOString(),

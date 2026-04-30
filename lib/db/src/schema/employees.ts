@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,7 @@ export const employeesTable = pgTable("employees", {
   passportSeries: text("passport_series"),
   passportNumber: text("passport_number"),
   pinfl: text("pinfl"),
+  isIjroResponsible: boolean("is_ijro_responsible").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

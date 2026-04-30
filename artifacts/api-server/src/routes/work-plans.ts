@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { db } from "@workspace/db";
 import { workPlansTable, workPlanTasksTable, employeesTable, departmentsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
 
 const router: IRouter = Router();
@@ -28,12 +28,15 @@ function mapTask(t: typeof workPlanTasksTable.$inferSelect) {
     actualResult: t.actualResult ?? null,
     status: t.status,
     pdfUrl: t.pdfUrl ?? null,
+    category: t.category ?? null,
+    ijroLate: t.ijroLate ?? null,
+    ijroUnexecuted: t.ijroUnexecuted ?? null,
     createdAt: t.createdAt.toISOString(),
   };
 }
 
 async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
-  const tasks = await db
+  let tasks = await db
     .select()
     .from(workPlanTasksTable)
     .where(eq(workPlanTasksTable.planId, plan.id))
@@ -43,6 +46,35 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
   const emp = plan.employeeId
     ? (await db.select().from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1))[0]
     : undefined;
+
+  // Ijro intizomi avto-vazifasi: agar tizimda kimdir "ijro mas'ul" bo'lsa
+  // va shu rejaning xodimi mas'ul EMAS bo'lsa, hamda hali ijro vazifasi yo'q bo'lsa — yaratamiz.
+  if (emp && !emp.isIjroResponsible) {
+    const responsible = await db
+      .select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, "active")))
+      .limit(1);
+    if (responsible.length > 0) {
+      const hasIjro = tasks.some((t) => t.category === "ijro");
+      if (!hasIjro) {
+        await db.insert(workPlanTasksTable).values({
+          planId: plan.id,
+          orderNum: 0,
+          isSection: false,
+          title: "Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar",
+          unitOfMeasure: "dona",
+          category: "ijro",
+          status: "pending",
+        });
+        tasks = await db
+          .select()
+          .from(workPlanTasksTable)
+          .where(eq(workPlanTasksTable.planId, plan.id))
+          .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
+      }
+    }
+  }
   const dept = emp
     ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1)
     : [];

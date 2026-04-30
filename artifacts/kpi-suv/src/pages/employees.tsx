@@ -74,6 +74,7 @@ const employeeSchema = z.object({
   passportSeries: z.string().max(4).optional(),
   passportNumber: z.string().max(10).optional(),
   pinfl: z.string().max(14).optional(),
+  isIjroResponsible: z.boolean().optional(),
   username: z.string().min(3, "Login kamida 3 ta belgi").optional().or(z.literal("")),
   password: z.string().min(4, "Parol kamida 4 ta belgi").optional().or(z.literal("")),
 });
@@ -175,6 +176,7 @@ export default function Employees() {
       passportSeries: "",
       passportNumber: "",
       pinfl: "",
+      isIjroResponsible: false,
       username: "",
       password: "",
     });
@@ -195,6 +197,7 @@ export default function Employees() {
       passportSeries: employee.passportSeries || "",
       passportNumber: employee.passportNumber || "",
       pinfl: employee.pinfl || "",
+      isIjroResponsible: employee.isIjroResponsible === true,
       username: employee.username || "",
       password: "",
     });
@@ -548,6 +551,34 @@ export default function Employees() {
                     )}
                   />
                 </div>
+              </div>
+
+              {/* ── Ijro intizomi mas'uli ── */}
+              <div className="space-y-3">
+                <FormField
+                  control={form.control}
+                  name="isIjroResponsible"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={!!field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-amber-900 font-medium">
+                          Ijro.gov bo'yicha mas'ul
+                        </FormLabel>
+                        <p className="text-xs text-amber-700">
+                          Belgilansa, qolgan barcha xodimlarning ish rejasiga "Ijro intizomi" bo'yicha avto-vazifa qo'shiladi.
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
               </div>
 
               {/* ── Tizimga kirish ── */}

@@ -78,17 +78,22 @@ router.patch(
     if (!currentTask) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
 
     const isAdminOrManager = req.user!.role === "admin" || req.user!.role === "manager";
+    const isIjroTask = currentTask.category === "ijro";
 
-    const { actualVolume, completionPercentage, status, pdfUrl, actualResult } = req.body as {
+    const { actualVolume, completionPercentage, status, pdfUrl, actualResult, plannedVolume, ijroLate, ijroUnexecuted } = req.body as {
       actualVolume?: string | null;
       completionPercentage?: number;
       status?: string;
       pdfUrl?: string | null;
       actualResult?: string | null;
+      plannedVolume?: string | null;
+      ijroLate?: number | null;
+      ijroUnexecuted?: number | null;
     };
 
     // Rule 1: Non-admin users must attach a PDF when reporting actualVolume
-    if (!isAdminOrManager && actualVolume !== undefined && actualVolume !== null && actualVolume !== "") {
+    // (Ijro vazifasi uchun PDF talab qilinmaydi — bu oylik statistika)
+    if (!isIjroTask && !isAdminOrManager && actualVolume !== undefined && actualVolume !== null && actualVolume !== "") {
       const incomingPdf = pdfUrl !== undefined && pdfUrl !== null && pdfUrl !== "";
       const existingPdf = !!currentTask.pdfUrl;
       if (!incomingPdf && !existingPdf) {
@@ -110,6 +115,23 @@ router.patch(
     }
     if (pdfUrl !== undefined)              updateData.pdfUrl = pdfUrl;
     if (actualResult !== undefined)        updateData.actualResult = actualResult;
+
+    // Ijro vazifasi uchun qo'shimcha maydonlar
+    if (isIjroTask) {
+      if (plannedVolume !== undefined)   updateData.plannedVolume = plannedVolume;
+      if (ijroLate !== undefined)        updateData.ijroLate = ijroLate;
+      if (ijroUnexecuted !== undefined)  updateData.ijroUnexecuted = ijroUnexecuted;
+
+      // KPI ni avto-hisoblash: bajarilgan / kelib_tushgan * 100
+      const newPlanned = plannedVolume !== undefined ? plannedVolume : currentTask.plannedVolume;
+      const newActual = actualVolume !== undefined ? actualVolume : currentTask.actualVolume;
+      const planned = newPlanned ? parseFloat(String(newPlanned)) : 0;
+      const actual = newActual ? parseFloat(String(newActual)) : 0;
+      if (planned > 0) {
+        const pct = Math.min(100, Math.max(0, Math.round((actual / planned) * 100)));
+        updateData.completionPercentage = pct;
+      }
+    }
 
     if (Object.keys(updateData).length === 0) {
       res.status(400).json({ error: "Yangilanadigan ma'lumot yo'q" }); return;

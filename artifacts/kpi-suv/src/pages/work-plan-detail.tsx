@@ -273,6 +273,7 @@ export default function WorkPlanDetail() {
   const [inlineEditTask, setInlineEditTask] = useState<any>(null);
 
   const [progressEdits, setProgressEdits] = useState<Record<number, TaskEdit>>({});
+  const [ijroEdits, setIjroEdits] = useState<Record<number, { plannedVolume: string; actualVolume: string; ijroLate: string; ijroUnexecuted: string; saving: boolean }>>({});
   const [editingProgressIds, setEditingProgressIds] = useState<Set<number>>(new Set());
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
@@ -329,6 +330,21 @@ export default function WorkPlanDetail() {
       for (const task of (plan.tasks ?? [])) {
         if (!task.isSection && !(task.id in next)) {
           next[task.id] = { actualVolume: task.actualVolume ?? "", pdfUrl: task.pdfUrl ?? null, uploading: false, saving: false, approving: false, rejecting: false };
+        }
+      }
+      return next;
+    });
+    setIjroEdits((prev) => {
+      const next = { ...prev };
+      for (const task of (plan.tasks ?? []) as any[]) {
+        if (task.category === "ijro" && !(task.id in next)) {
+          next[task.id] = {
+            plannedVolume: task.plannedVolume ?? "",
+            actualVolume: task.actualVolume ?? "",
+            ijroLate: task.ijroLate != null ? String(task.ijroLate) : "",
+            ijroUnexecuted: task.ijroUnexecuted != null ? String(task.ijroUnexecuted) : "",
+            saving: false,
+          };
         }
       }
       return next;
@@ -758,6 +774,33 @@ export default function WorkPlanDetail() {
     }
   };
 
+  const saveIjroProgress = async (taskId: number) => {
+    const edit = ijroEdits[taskId];
+    if (!edit) return;
+    setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          plannedVolume: edit.plannedVolume || null,
+          actualVolume: edit.actualVolume || null,
+          ijroLate: edit.ijroLate ? parseInt(edit.ijroLate) : null,
+          ijroUnexecuted: edit.ijroUnexecuted ? parseInt(edit.ijroUnexecuted) : null,
+        }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({
+        title: "Saqlandi",
+        description: isAdminOrManager ? undefined : "Admin tasdig'i kutilmoqda",
+      });
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setIjroEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));
+    }
+  };
+
   const uploadPdf = async (taskId: number, file: File) => {
     setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: true } }));
     try {
@@ -1048,6 +1091,68 @@ export default function WorkPlanDetail() {
                   const inp = "w-full border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-gray-800";
                   const sel = "w-full border rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400";
                   const setIE = (field: string, val: any) => setInlineEditTask((prev: any) => ({ ...prev, [field]: val }));
+
+                  // ── Maxsus ijro intizomi qatori ─────────────────────────
+                  if (task.category === "ijro") {
+                    const e = ijroEdits[task.id] ?? { plannedVolume: "", actualVolume: "", ijroLate: "", ijroUnexecuted: "", saving: false };
+                    const setIJ = (field: string, val: string) =>
+                      setIjroEdits((p) => ({ ...p, [task.id]: { ...(p[task.id] ?? e), [field]: val } }));
+                    const planned = parseFloat(e.plannedVolume || "0");
+                    const actual = parseFloat(e.actualVolume || "0");
+                    const ijroPct = planned > 0 ? Math.min(100, Math.max(0, Math.round((actual / planned) * 100))) : null;
+                    const totalCols = isLocked ? 13 : 12;
+                    return (
+                      <tr key={task.id} className="border-b bg-amber-50/40 dark:bg-amber-950/10 hover:bg-amber-50/70">
+                        <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                        <td colSpan={totalCols} className="px-3 py-3 border-r">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">Ijro intizomi</span>
+                              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                Ijro.gov bo'yicha kelib tushgan xat-hujjatlar (avto-vazifa)
+                              </span>
+                              {!isAdminOrManager && (
+                                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">⏳ Tasdiq kutilmoqda</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Kelib tushgan</span>
+                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.plannedVolume}
+                                  onChange={(ev) => setIJ("plannedVolume", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Bajarilgan</span>
+                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.actualVolume}
+                                  onChange={(ev) => setIJ("actualVolume", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Muddatidan kech</span>
+                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.ijroLate}
+                                  onChange={(ev) => setIJ("ijroLate", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Bajarilmagan</span>
+                                <input className="w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500" type="number" min="0" value={e.ijroUnexecuted}
+                                  onChange={(ev) => setIJ("ijroUnexecuted", ev.target.value)} />
+                              </label>
+                              <div className="flex flex-col items-center px-3 border-l border-amber-200">
+                                <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                                <div className="text-base font-bold text-amber-700">{ijroPct !== null ? `${ijroPct}%` : "—"}</div>
+                              </div>
+                              <button
+                                onClick={() => saveIjroProgress(task.id)}
+                                disabled={e.saving}
+                                className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                              >
+                                {e.saving ? "Saqlanmoqda..." : "Saqlash"}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
 
                   return (
                     <tr

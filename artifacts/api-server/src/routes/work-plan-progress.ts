@@ -104,9 +104,9 @@ router.patch(
         isIjroResp = !!respEmp?.isIjroResponsible;
         isMehnatResp = !!respEmp?.isMehnatResponsible;
       }
-      // Ijro: admin/manager yoki Ijro mas'uli kirita oladi
-      if (isIjroTask && !isAdminOrManager && !isIjroResp) {
-        res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin" });
+      // Ijro: faqat Ijro intizomi mas'uli kirita oladi (admin/manager bo'lsa ham yo'q)
+      if (isIjroTask && !isIjroResp) {
+        res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro intizomi bo'yicha mas'ul kirita oladi" });
         return;
       }
       // Mehnat: faqat Mehnat mas'uli kirita oladi (admin/manager bo'lsa ham yo'q)

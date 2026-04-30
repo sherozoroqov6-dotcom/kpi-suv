@@ -282,7 +282,8 @@ export default function WorkPlanDetail() {
   const isAdminOrManager = user?.role === "admin" || user?.role === "manager";
   const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
   const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
-  const canEditIjroTask = isAdminOrManager || isIjroResponsibleUser;
+  // Ijro intizomi: faqat Ijro.gov mas'uli kirita oladi (admin/manager ham yo'q)
+  const canEditIjroTask = isIjroResponsibleUser;
   // Malaka talabi: faqat Mehnat intizomi mas'uli kirita oladi (admin/manager ham yo'q)
   const canEditMehnatTask = isMehnatResponsibleUser;
 
@@ -1182,7 +1183,7 @@ export default function WorkPlanDetail() {
                             </span>
                             {ijroDisabled ? (
                               <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
-                                🔒 Faqat Ijro.gov mas'uli
+                                🔒 Faqat Ijro intizomi mas'uli
                               </span>
                             ) : (
                               !isAdminOrManager && (

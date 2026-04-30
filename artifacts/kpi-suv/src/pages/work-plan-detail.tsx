@@ -1146,7 +1146,14 @@ export default function WorkPlanDetail() {
                 </tr>
               </thead>
               <tbody>
-                {plan.tasks?.map((task: any) => {
+                {(() => {
+                  // Maxsus qatorlar (Mehnat → Ijro) doim eng yuqorida; qolgani — original tartibda
+                  const all = plan.tasks ?? [];
+                  const mehnatRows = all.filter((t: any) => t.category === "mehnat");
+                  const ijroRows = all.filter((t: any) => t.category === "ijro");
+                  const otherRows = all.filter((t: any) => t.category !== "mehnat" && t.category !== "ijro");
+                  return [...mehnatRows, ...ijroRows, ...otherRows];
+                })().map((task: any) => {
                   const isSection = task.isSection;
                   if (!isSection) taskCounter++;
                   const rowNum = isSection ? null : taskCounter;

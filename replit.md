@@ -90,6 +90,8 @@ workspace/
 - `GET/POST /api/kpi/indicators` — KPI ko'rsatkichlari
 - `GET/POST /api/evaluations` — baholashlar
 - `GET/POST /api/work-plans` — ish rejalari
+  - GET ro'yxatda super-admin (tuman=null) tuman/tumans filteri qo'llaganda ham `userId === currentUserId` shart bilan o'z yaratgan rejalarini doim ko'radi.
+  - Detail sahifa: Ijro intizomi va Mehnat intizomi avto-vazifalari bitta `<tr>`'da yonma-yon ko'rsatiladi (chap=amber Ijro, o'ng=emerald Mehnat). Faqat bittasi mavjud bo'lsa — to'liq kenglikda.
 - `GET/POST /api/mfylar` — MFY
 - `GET /api/dashboard/summary` — statistika xulosasi
 - `GET /api/admin/users` — foydalanuvchilar (admin)

@@ -190,6 +190,7 @@ router.get("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Re
     if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));
   } else {
     // Super admin (tuman yo'q): barcha rejalarni ko'radi, ixtiyoriy filtrlar bilan
+    const currentUserId = req.user!.id;
     if (employeeId) plans = plans.filter((p) => p.employeeId === parseInt(employeeId));
     if (tumans) {
       const tumanList = tumans.split(",").map((t) => t.trim()).filter(Boolean);
@@ -197,13 +198,21 @@ router.get("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Re
       const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman && tumanList.includes(u.tuman!)).map(u => u.id));
       const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);
       const empIds = new Set(allEmps.filter((e) => e.tuman && tumanList.includes(e.tuman)).map((e) => e.id));
-      plans = plans.filter((p) => (p.userId && tumanUserIds.has(p.userId)) || (p.employeeId && empIds.has(p.employeeId)));
+      plans = plans.filter((p) =>
+        p.userId === currentUserId
+        || (p.userId && tumanUserIds.has(p.userId))
+        || (p.employeeId && empIds.has(p.employeeId))
+      );
     } else if (tuman) {
       const allEmps = await db.select({ id: employeesTable.id, tuman: employeesTable.tuman }).from(employeesTable);
       const empIds = new Set(allEmps.filter((e) => e.tuman === tuman).map((e) => e.id));
       const tumanUsers = await db.select({ id: usersTable.id, tuman: usersTable.tuman }).from(usersTable);
       const tumanUserIds = new Set(tumanUsers.filter(u => u.tuman === tuman).map(u => u.id));
-      plans = plans.filter((p) => (p.userId && tumanUserIds.has(p.userId)) || (p.employeeId && empIds.has(p.employeeId)));
+      plans = plans.filter((p) =>
+        p.userId === currentUserId
+        || (p.userId && tumanUserIds.has(p.userId))
+        || (p.employeeId && empIds.has(p.employeeId))
+      );
     }
   }
 

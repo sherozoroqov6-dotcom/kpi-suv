@@ -40,6 +40,10 @@ export const workPlanTasksTable = pgTable("work_plan_tasks", {
   category: text("category"),
   ijroLate: integer("ijro_late"),
   ijroUnexecuted: integer("ijro_unexecuted"),
+  mehnatWorkHours: integer("mehnat_work_hours"),
+  mehnatLateMinutes: integer("mehnat_late_minutes"),
+  mehnatLateDays: integer("mehnat_late_days"),
+  mehnatResult: text("mehnat_result"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

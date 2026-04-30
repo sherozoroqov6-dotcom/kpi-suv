@@ -79,9 +79,10 @@ router.patch(
 
     const isAdminOrManager = req.user!.role === "admin" || req.user!.role === "manager";
     const isIjroTask = currentTask.category === "ijro";
+    const isMehnatTask = currentTask.category === "mehnat";
 
-    // Ijro vazifasi: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
-    if (isIjroTask && !isAdminOrManager) {
+    // Ijro va Mehnat vazifalari: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
+    if ((isIjroTask || isMehnatTask) && !isAdminOrManager) {
       const [linkedUser] = await db
         .select({ employeeId: usersTable.employeeId })
         .from(usersTable)
@@ -98,12 +99,13 @@ router.patch(
         isResp = !!respEmp?.isIjroResponsible;
       }
       if (!isResp) {
-        res.status(403).json({ error: "Ijro intizomi vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin" });
+        const label = isIjroTask ? "Ijro intizomi" : "Mehnat intizomi";
+        res.status(403).json({ error: `${label} vazifasini faqat Ijro.gov bo'yicha mas'ul yangilashi mumkin` });
         return;
       }
     }
 
-    const { actualVolume, completionPercentage, status, pdfUrl, actualResult, plannedVolume, ijroLate, ijroUnexecuted } = req.body as {
+    const { actualVolume, completionPercentage, status, pdfUrl, actualResult, plannedVolume, ijroLate, ijroUnexecuted, mehnatWorkHours, mehnatLateMinutes, mehnatLateDays, mehnatResult } = req.body as {
       actualVolume?: string | null;
       completionPercentage?: number;
       status?: string;
@@ -112,11 +114,15 @@ router.patch(
       plannedVolume?: string | null;
       ijroLate?: number | null;
       ijroUnexecuted?: number | null;
+      mehnatWorkHours?: number | null;
+      mehnatLateMinutes?: number | null;
+      mehnatLateDays?: number | null;
+      mehnatResult?: string | null;
     };
 
     // Rule 1: Non-admin users must attach a PDF when reporting actualVolume
-    // (Ijro vazifasi uchun PDF talab qilinmaydi — bu oylik statistika)
-    if (!isIjroTask && !isAdminOrManager && actualVolume !== undefined && actualVolume !== null && actualVolume !== "") {
+    // (Ijro/Mehnat avto-vazifalari uchun PDF talab qilinmaydi — bu oylik statistika)
+    if (!isIjroTask && !isMehnatTask && !isAdminOrManager && actualVolume !== undefined && actualVolume !== null && actualVolume !== "") {
       const incomingPdf = pdfUrl !== undefined && pdfUrl !== null && pdfUrl !== "";
       const existingPdf = !!currentTask.pdfUrl;
       if (!incomingPdf && !existingPdf) {
@@ -136,9 +142,9 @@ router.patch(
         updateData.status = status;
       }
     }
-    // Rule 3: Faqat admin/manager (yoki ijro maxsus avto-hisobi) completionPercentage'ni > 0 qila oladi.
+    // Rule 3: Faqat admin/manager (yoki ijro/mehnat maxsus avto-hisobi) completionPercentage'ni > 0 qila oladi.
     // Oddiy xodim actualVolume saqlasa — foiz 0'ga reset bo'ladi (qayta tasdiqlash zarur).
-    if (!isIjroTask && !isAdminOrManager) {
+    if (!isIjroTask && !isMehnatTask && !isAdminOrManager) {
       if (actualVolume !== undefined) {
         updateData.completionPercentage = 0;
       } else if (completionPercentage !== undefined && Number(completionPercentage) > 0) {
@@ -162,6 +168,27 @@ router.patch(
       if (planned > 0) {
         const pct = Math.min(100, Math.max(0, Math.round((actual / planned) * 100)));
         updateData.completionPercentage = pct;
+      }
+    }
+
+    // Mehnat intizomi vazifasi uchun qo'shimcha maydonlar
+    if (isMehnatTask) {
+      if (mehnatWorkHours !== undefined)   updateData.mehnatWorkHours = mehnatWorkHours;
+      if (mehnatLateMinutes !== undefined) updateData.mehnatLateMinutes = mehnatLateMinutes;
+      if (mehnatLateDays !== undefined)    updateData.mehnatLateDays = mehnatLateDays;
+      if (mehnatResult !== undefined)      updateData.mehnatResult = mehnatResult;
+
+      // KPI ni avto-hisoblash: kechikish jarima foizi = (late_minutes / (work_hours*60))*100
+      // natija = max(0, 100 - jarima). Agar oylik soat 0 bo'lsa va kechikish ham yo'q — 100%.
+      const newHours = mehnatWorkHours !== undefined ? mehnatWorkHours : currentTask.mehnatWorkHours;
+      const newLateMin = mehnatLateMinutes !== undefined ? mehnatLateMinutes : currentTask.mehnatLateMinutes;
+      const hours = newHours ? Number(newHours) : 0;
+      const lateMin = newLateMin ? Number(newLateMin) : 0;
+      if (hours > 0) {
+        const penalty = Math.min(100, (lateMin / (hours * 60)) * 100);
+        updateData.completionPercentage = Math.max(0, Math.round(100 - penalty));
+      } else if (lateMin === 0 && newHours !== null && newHours !== undefined) {
+        updateData.completionPercentage = 100;
       }
     }
 

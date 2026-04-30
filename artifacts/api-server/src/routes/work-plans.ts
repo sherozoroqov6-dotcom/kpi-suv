@@ -31,6 +31,10 @@ function mapTask(t: typeof workPlanTasksTable.$inferSelect) {
     category: t.category ?? null,
     ijroLate: t.ijroLate ?? null,
     ijroUnexecuted: t.ijroUnexecuted ?? null,
+    mehnatWorkHours: t.mehnatWorkHours ?? null,
+    mehnatLateMinutes: t.mehnatLateMinutes ?? null,
+    mehnatLateDays: t.mehnatLateDays ?? null,
+    mehnatResult: t.mehnatResult ?? null,
     createdAt: t.createdAt.toISOString(),
   };
 }
@@ -47,41 +51,58 @@ async function enrichPlan(plan: typeof workPlansTable.$inferSelect) {
     ? (await db.select().from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1))[0]
     : undefined;
 
-  // Ijro intizomi avto-vazifasi: agar tizimda kimdir "ijro mas'ul" bo'lsa
-  // va shu rejaning xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa,
-  // hamda hali ijro vazifasi yo'q bo'lsa — yaratamiz.
-  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned);
-  if (ijroEligible) {
-    const responsible = await db
-      .select({ id: employeesTable.id })
-      .from(employeesTable)
-      .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, "active")))
-      .limit(1);
-    if (responsible.length > 0) {
-      const hasIjro = tasks.some((t) => t.category === "ijro");
-      if (!hasIjro) {
-        await db.insert(workPlanTasksTable).values({
-          planId: plan.id,
-          orderNum: 0,
-          isSection: false,
-          title: "Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar",
-          unitOfMeasure: "dona",
-          category: "ijro",
-          status: "pending",
-        });
-        tasks = await db
-          .select()
-          .from(workPlanTasksTable)
-          .where(eq(workPlanTasksTable.planId, plan.id))
-          .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
-      }
-    }
+  // Tizimda Ijro mas'uli mavjudmi (mehnat va ijro avto-vazifalari uchun zarur)
+  const responsible = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.isIjroResponsible, true), eq(employeesTable.status, "active")))
+    .limit(1);
+  const hasResponsible = responsible.length > 0;
+
+  // Ijro intizomi avto-vazifasi: agar tizimda Ijro mas'uli bor bo'lsa va shu rejaning
+  // xodimi mas'ul tomonidan tanlangan (isIjroAssigned=true) bo'lsa — yaratamiz.
+  const ijroEligible = !!(emp && !emp.isIjroResponsible && emp.isIjroAssigned && hasResponsible);
+  if (ijroEligible && !tasks.some((t) => t.category === "ijro")) {
+    await db.insert(workPlanTasksTable).values({
+      planId: plan.id,
+      orderNum: 0,
+      isSection: false,
+      title: "Ijro intizomi bo'yicha kelib tushgan xat-hujjatlar",
+      unitOfMeasure: "dona",
+      category: "ijro",
+      status: "pending",
+    });
+    tasks = await db
+      .select()
+      .from(workPlanTasksTable)
+      .where(eq(workPlanTasksTable.planId, plan.id))
+      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
   }
-  // Agar xodim endi Ijro mas'uli tomonidan tanlanmagan bo'lsa, ijro qatorini javobdan
-  // yashiramiz (DB'dagi ma'lumot saqlanadi — qayta belgilansa, qator qaytadi).
-  if (!ijroEligible) {
-    tasks = tasks.filter((t) => t.category !== "ijro");
+
+  // Mehnat intizomi avto-vazifasi: tizimda Ijro mas'uli mavjud bo'lsa, qolgan barcha
+  // xodimlarga (Ijro mas'ulining o'zidan tashqari) avto-vazifa qo'shamiz.
+  const mehnatEligible = !!(emp && !emp.isIjroResponsible && hasResponsible);
+  if (mehnatEligible && !tasks.some((t) => t.category === "mehnat")) {
+    await db.insert(workPlanTasksTable).values({
+      planId: plan.id,
+      orderNum: 1,
+      isSection: false,
+      title: "Mehnat intizomi (avto-vazifa)",
+      unitOfMeasure: "soat",
+      category: "mehnat",
+      status: "pending",
+    });
+    tasks = await db
+      .select()
+      .from(workPlanTasksTable)
+      .where(eq(workPlanTasksTable.planId, plan.id))
+      .orderBy(workPlanTasksTable.orderNum, workPlanTasksTable.createdAt);
   }
+
+  // Agar shartlar bajarilmasa, tegishli avto-vazifalarni javobdan filtrlaymiz
+  // (DB'dagi ma'lumot saqlanadi — keyinchalik qaytadi).
+  if (!ijroEligible)   tasks = tasks.filter((t) => t.category !== "ijro");
+  if (!mehnatEligible) tasks = tasks.filter((t) => t.category !== "mehnat");
   const dept = emp
     ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1)
     : [];

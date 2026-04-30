@@ -274,6 +274,7 @@ export default function WorkPlanDetail() {
 
   const [progressEdits, setProgressEdits] = useState<Record<number, TaskEdit>>({});
   const [ijroEdits, setIjroEdits] = useState<Record<number, { plannedVolume: string; actualVolume: string; ijroLate: string; ijroUnexecuted: string; saving: boolean }>>({});
+  const [mehnatEdits, setMehnatEdits] = useState<Record<number, { workHours: string; lateMinutes: string; lateDays: string; result: string; saving: boolean }>>({});
   const [editingProgressIds, setEditingProgressIds] = useState<Set<number>>(new Set());
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
@@ -345,6 +346,21 @@ export default function WorkPlanDetail() {
             actualVolume: task.actualVolume ?? "",
             ijroLate: task.ijroLate != null ? String(task.ijroLate) : "",
             ijroUnexecuted: task.ijroUnexecuted != null ? String(task.ijroUnexecuted) : "",
+            saving: false,
+          };
+        }
+      }
+      return next;
+    });
+    setMehnatEdits((prev) => {
+      const next = { ...prev };
+      for (const task of (plan.tasks ?? []) as any[]) {
+        if (task.category === "mehnat" && !(task.id in next)) {
+          next[task.id] = {
+            workHours: task.mehnatWorkHours != null ? String(task.mehnatWorkHours) : "",
+            lateMinutes: task.mehnatLateMinutes != null ? String(task.mehnatLateMinutes) : "",
+            lateDays: task.mehnatLateDays != null ? String(task.mehnatLateDays) : "",
+            result: task.mehnatResult ?? "",
             saving: false,
           };
         }
@@ -811,6 +827,30 @@ export default function WorkPlanDetail() {
     }
   };
 
+  const saveMehnatProgress = async (taskId: number) => {
+    const edit = mehnatEdits[taskId];
+    if (!edit) return;
+    setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: true } }));
+    try {
+      await customFetch(`${BASE}/api/work-plans/${id}/tasks/${taskId}/progress`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          mehnatWorkHours:   edit.workHours   ? parseInt(edit.workHours)   : null,
+          mehnatLateMinutes: edit.lateMinutes ? parseInt(edit.lateMinutes) : null,
+          mehnatLateDays:    edit.lateDays    ? parseInt(edit.lateDays)    : null,
+          mehnatResult:      edit.result || null,
+        }),
+        headers: { "Content-Type": "application/json" },
+      } as any);
+      invalidate();
+      toast({ title: "Saqlandi" });
+    } catch {
+      toast({ title: "Xatolik yuz berdi", variant: "destructive" });
+    } finally {
+      setMehnatEdits((p) => ({ ...p, [taskId]: { ...p[taskId], saving: false } }));
+    }
+  };
+
   const uploadPdf = async (taskId: number, file: File) => {
     setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: true } }));
     try {
@@ -1174,6 +1214,80 @@ export default function WorkPlanDetail() {
                                   className="text-xs bg-amber-600 hover:bg-amber-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
                                 >
                                   {e.saving ? "Saqlanmoqda..." : "Saqlash"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  // ── Maxsus mehnat intizomi qatori ────────────────────────
+                  if (task.category === "mehnat") {
+                    const m = mehnatEdits[task.id] ?? { workHours: "", lateMinutes: "", lateDays: "", result: "", saving: false };
+                    const setM = (field: string, val: string) =>
+                      setMehnatEdits((p) => ({ ...p, [task.id]: { ...(p[task.id] ?? m), [field]: val } }));
+                    const hours = parseFloat(m.workHours || "0");
+                    const lateMin = parseFloat(m.lateMinutes || "0");
+                    let mehnatPct: number | null = null;
+                    if (hours > 0) {
+                      const penalty = Math.min(100, (lateMin / (hours * 60)) * 100);
+                      mehnatPct = Math.max(0, Math.round(100 - penalty));
+                    } else if (lateMin === 0 && m.workHours !== "") {
+                      mehnatPct = 100;
+                    }
+                    const totalCols = isLocked ? 13 : 12;
+                    const mehnatDisabled = !canEditIjroTask;
+                    const mInpCls = "w-24 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed";
+                    return (
+                      <tr key={task.id} className="border-b bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70">
+                        <td className="px-2 py-2 text-center border-r text-muted-foreground align-top">{rowNum}</td>
+                        <td colSpan={totalCols} className="px-3 py-3 border-r">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200 px-2 py-0.5 rounded uppercase tracking-wide">Mehnat intizomi</span>
+                              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                Xodimning oylik mehnat intizomi (avto-vazifa)
+                              </span>
+                              {mehnatDisabled && (
+                                <span className="text-[10px] text-gray-700 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded">
+                                  🔒 Faqat Ijro.gov mas'uli to'ldira oladi
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Oylik ish soati</span>
+                                <input className={mInpCls} type="number" min="0" value={m.workHours} disabled={mehnatDisabled}
+                                  onChange={(ev) => setM("workHours", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Kechikkan daqiqa</span>
+                                <input className={mInpCls} type="number" min="0" value={m.lateMinutes} disabled={mehnatDisabled}
+                                  onChange={(ev) => setM("lateMinutes", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Kech kelgan kunlar</span>
+                                <input className={mInpCls} type="number" min="0" value={m.lateDays} disabled={mehnatDisabled}
+                                  onChange={(ev) => setM("lateDays", ev.target.value)} />
+                              </label>
+                              <label className="text-[11px] text-gray-600 dark:text-gray-400">
+                                <span className="block mb-0.5 font-medium">Natija (izoh)</span>
+                                <input className={`${mInpCls} w-48`} type="text" value={m.result} disabled={mehnatDisabled}
+                                  onChange={(ev) => setM("result", ev.target.value)} placeholder="Masalan: Yaxshi" />
+                              </label>
+                              <div className="flex flex-col items-center px-3 border-l border-emerald-200">
+                                <div className="text-[10px] text-gray-500 uppercase">KPI</div>
+                                <div className="text-base font-bold text-emerald-700">{mehnatPct !== null ? `${mehnatPct}%` : "—"}</div>
+                              </div>
+                              {!mehnatDisabled && (
+                                <button
+                                  onClick={() => saveMehnatProgress(task.id)}
+                                  disabled={m.saving}
+                                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50"
+                                >
+                                  {m.saving ? "Saqlanmoqda..." : "Saqlash"}
                                 </button>
                               )}
                             </div>

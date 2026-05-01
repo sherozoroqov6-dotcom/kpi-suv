@@ -1,8 +1,48 @@
 import { Router, type IRouter, type Response } from "express";
 import { db } from "@workspace/db";
-import { employeesTable, departmentsTable, evaluationsTable, usersTable } from "@workspace/db";
+import { employeesTable, departmentsTable, evaluationsTable, usersTable, workPlanTasksTable } from "@workspace/db";
 import { eq, avg, and, inArray } from "drizzle-orm";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
+
+/* ── Ijro va Mehnat task'lari completionPercentage o'rtacha (global) ──
+   Bu Ijro.gov / Mehnat intizomi mas'ullarining shaxsiy KPI'siga qo'shiladi:
+   ular kiritgan barcha xodimlarning ijro/mehnat natijalari mas'ulning
+   shaxsiy o'rtacha ko'rsatkichida hisobga olinadi.                       */
+async function computeResponsibleAverages(): Promise<{ ijroAvg: number | null; mehnatAvg: number | null }> {
+  const [ijro] = await db
+    .select({ avgPct: avg(workPlanTasksTable.completionPercentage) })
+    .from(workPlanTasksTable)
+    .where(eq(workPlanTasksTable.category, "ijro"));
+  const [mehnat] = await db
+    .select({ avgPct: avg(workPlanTasksTable.completionPercentage) })
+    .from(workPlanTasksTable)
+    .where(eq(workPlanTasksTable.category, "mehnat"));
+  return {
+    ijroAvg:   ijro?.avgPct   != null ? Number(ijro.avgPct)   : null,
+    mehnatAvg: mehnat?.avgPct != null ? Number(mehnat.avgPct) : null,
+  };
+}
+
+/* Mas'ul xodim uchun yakuniy averageScore'ni hisoblash:
+   • shaxsiy evaluation o'rtachasi (bo'lsa)
+   • ijro mas'uli bo'lsa — barcha ijro task'lar foiz o'rtachasi qo'shiladi
+   • mehnat mas'uli bo'lsa — barcha mehnat task'lar foiz o'rtachasi qo'shiladi
+   Mavjud qiymatlarning oddiy o'rtachasi qaytariladi. */
+function blendResponsibleScore(opts: {
+  baseAvg: number | null;
+  isIjroResp: boolean;
+  isMehnatResp: boolean;
+  ijroAvg: number | null;
+  mehnatAvg: number | null;
+}): number | null {
+  const parts: number[] = [];
+  if (opts.baseAvg != null) parts.push(opts.baseAvg);
+  if (opts.isIjroResp   && opts.ijroAvg   != null) parts.push(opts.ijroAvg);
+  if (opts.isMehnatResp && opts.mehnatAvg != null) parts.push(opts.mehnatAvg);
+  if (parts.length === 0) return null;
+  const sum = parts.reduce((a, b) => a + b, 0);
+  return Math.round((sum / parts.length) * 10) / 10;
+}
 
 const router: IRouter = Router();
 
@@ -54,6 +94,9 @@ router.get("/employees", requireAuth, async (req: AuthenticatedRequest, res: Res
     .groupBy(evaluationsTable.employeeId);
   const avgMap = new Map(avgScores.map((a) => [a.employeeId, Number(a.avgScore ?? 0)]));
 
+  // Ijro va Mehnat task'lari foiz o'rtachasi (mas'ullar KPI'siga qo'shiladi)
+  const { ijroAvg, mehnatAvg } = await computeResponsibleAverages();
+
   const allUsers = await db
     .select({ employeeId: usersTable.employeeId, username: usersTable.username })
     .from(usersTable);
@@ -62,27 +105,35 @@ router.get("/employees", requireAuth, async (req: AuthenticatedRequest, res: Res
     if (u.employeeId != null) userMap.set(u.employeeId, u.username);
   }
 
-  const result = empRows.map((e) => ({
-    id: e.id,
-    fullName: e.fullName,
-    position: e.position,
-    departmentId: e.departmentId,
-    departmentName: deptMap.get(e.departmentId) ?? null,
-    phone: e.phone ?? null,
-    email: e.email ?? null,
-    hireDate: e.hireDate ?? null,
-    status: e.status,
-    tuman: e.tuman ?? null,
-    passportSeries: e.passportSeries ?? null,
-    passportNumber: e.passportNumber ?? null,
-    pinfl: e.pinfl ?? null,
-    isIjroResponsible: e.isIjroResponsible ?? false,
-    isIjroAssigned: e.isIjroAssigned ?? false,
-    isMehnatResponsible: e.isMehnatResponsible ?? false,
-    username: userMap.get(e.id) ?? null,
-    averageScore: avgMap.get(e.id) ?? null,
-    createdAt: e.createdAt.toISOString(),
-  }));
+  const result = empRows.map((e) => {
+    const baseAvg = avgMap.get(e.id) ?? null;
+    const isIjroResp = !!e.isIjroResponsible;
+    const isMehnatResp = !!e.isMehnatResponsible;
+    const finalScore = (isIjroResp || isMehnatResp)
+      ? blendResponsibleScore({ baseAvg, isIjroResp, isMehnatResp, ijroAvg, mehnatAvg })
+      : baseAvg;
+    return {
+      id: e.id,
+      fullName: e.fullName,
+      position: e.position,
+      departmentId: e.departmentId,
+      departmentName: deptMap.get(e.departmentId) ?? null,
+      phone: e.phone ?? null,
+      email: e.email ?? null,
+      hireDate: e.hireDate ?? null,
+      status: e.status,
+      tuman: e.tuman ?? null,
+      passportSeries: e.passportSeries ?? null,
+      passportNumber: e.passportNumber ?? null,
+      pinfl: e.pinfl ?? null,
+      isIjroResponsible: isIjroResp,
+      isIjroAssigned: e.isIjroAssigned ?? false,
+      isMehnatResponsible: isMehnatResp,
+      username: userMap.get(e.id) ?? null,
+      averageScore: finalScore,
+      createdAt: e.createdAt.toISOString(),
+    };
+  });
 
   res.json(result);
 });
@@ -281,6 +332,16 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     .where(eq(usersTable.employeeId, id))
     .limit(1);
 
+  // Mas'ul xodim KPI'siga ijro/mehnat task natijalarini qo'shish
+  const baseAvg = avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null;
+  const isIjroResp = !!emp.isIjroResponsible;
+  const isMehnatResp = !!emp.isMehnatResponsible;
+  let finalScore = baseAvg;
+  if (isIjroResp || isMehnatResp) {
+    const { ijroAvg, mehnatAvg } = await computeResponsibleAverages();
+    finalScore = blendResponsibleScore({ baseAvg, isIjroResp, isMehnatResp, ijroAvg, mehnatAvg });
+  }
+
   res.json({
     id: emp.id,
     fullName: emp.fullName,
@@ -295,11 +356,11 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportSeries: emp.passportSeries ?? null,
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
-    isIjroResponsible: emp.isIjroResponsible ?? false,
+    isIjroResponsible: isIjroResp,
     isIjroAssigned: emp.isIjroAssigned ?? false,
-    isMehnatResponsible: emp.isMehnatResponsible ?? false,
+    isMehnatResponsible: isMehnatResp,
     username: linked[0]?.username ?? null,
-    averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
+    averageScore: finalScore,
     createdAt: emp.createdAt.toISOString(),
   });
 });
@@ -481,6 +542,18 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     .where(eq(usersTable.employeeId, id))
     .limit(1);
 
+  // Mas'ul xodim KPI'siga ijro/mehnat task natijalarini qo'shish
+  const baseAvgPut = avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null;
+  const isIjroRespPut = !!emp.isIjroResponsible;
+  const isMehnatRespPut = !!emp.isMehnatResponsible;
+  let finalScorePut = baseAvgPut;
+  if (isIjroRespPut || isMehnatRespPut) {
+    const { ijroAvg, mehnatAvg } = await computeResponsibleAverages();
+    finalScorePut = blendResponsibleScore({
+      baseAvg: baseAvgPut, isIjroResp: isIjroRespPut, isMehnatResp: isMehnatRespPut, ijroAvg, mehnatAvg,
+    });
+  }
+
   res.json({
     id: emp.id,
     fullName: emp.fullName,
@@ -495,11 +568,11 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
     passportSeries: emp.passportSeries ?? null,
     passportNumber: emp.passportNumber ?? null,
     pinfl: emp.pinfl ?? null,
-    isIjroResponsible: emp.isIjroResponsible ?? false,
+    isIjroResponsible: isIjroRespPut,
     isIjroAssigned: emp.isIjroAssigned ?? false,
-    isMehnatResponsible: emp.isMehnatResponsible ?? false,
+    isMehnatResponsible: isMehnatRespPut,
     username: linkedAfter[0]?.username ?? null,
-    averageScore: avgScore[0]?.avgScore ? Number(avgScore[0].avgScore) : null,
+    averageScore: finalScorePut,
     createdAt: emp.createdAt.toISOString(),
   });
 });

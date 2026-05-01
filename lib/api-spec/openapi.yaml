@@ -969,6 +969,23 @@ components:
         departmentId:
           type: integer
           nullable: true
+        employeeId:
+          type: integer
+          nullable: true
+        isIjroResponsible:
+          type: boolean
+        isMehnatResponsible:
+          type: boolean
+        canCreateWorkPlans:
+          type: boolean
+        canEnterResults:
+          type: boolean
+        viloyat:
+          type: string
+          nullable: true
+        tuman:
+          type: string
+          nullable: true
         createdAt:
           type: string
       required:

@@ -52,74 +52,70 @@ export function GlobalPeriodSettings() {
   };
 
   return (
-    <div className="rounded-2xl shadow-xl ring-1 ring-indigo-300/40 overflow-hidden" style={{ background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)" }}>
-      <div className="p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-white" />
+    <div className="rounded-xl shadow-lg ring-1 ring-indigo-300/40 overflow-hidden" style={{ background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)" }}>
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-7 w-7 rounded-md bg-white/20 flex items-center justify-center">
+            <Calendar className="h-4 w-4 text-white" />
           </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Global ruxsat oylari (super admin)</h3>
-            <p className="text-indigo-100/80 text-xs">
-              Barcha xodimlar uchun amal qiladi. Bo'sh qoldirilsa — chegara bo'lmaydi (istalgan oy).
-            </p>
-          </div>
+          <h3 className="text-sm font-bold text-white">Global ruxsat oylari (super admin)</h3>
+          <span className="text-indigo-100/70 text-[11px] hidden sm:inline">— bo'sh = chegara yo'q</span>
         </div>
 
         {isLoading ? (
-          <div className="text-white/80 text-sm mt-3">Yuklanmoqda...</div>
+          <div className="text-white/80 text-xs">Yuklanmoqda...</div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-3 mt-4">
-            <div className="bg-white/10 backdrop-blur rounded-xl p-3 border border-white/20">
-              <label className="block text-[11px] font-bold text-indigo-100 uppercase tracking-wider mb-1.5">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[10px] font-semibold text-indigo-100 uppercase tracking-wide mb-1">
                 Oylik ish reja yaratish oyi
               </label>
               <input
                 type="month"
                 value={createPeriod}
                 onChange={(e) => setCreatePeriod(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg bg-white text-gray-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full h-8 px-2 rounded-md bg-white text-gray-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
-              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-indigo-100">
-                {createPeriod ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                <span>{createPeriod ? `Faqat ${createPeriod} oyiga reja yaratish mumkin` : "Chegara yo'q"}</span>
+              <div className="flex items-center gap-1 mt-1 text-[10px] text-indigo-100/90">
+                {createPeriod ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+                <span className="truncate">{createPeriod ? `Faqat ${createPeriod}` : "Chegara yo'q"}</span>
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur rounded-xl p-3 border border-white/20">
-              <label className="block text-[11px] font-bold text-indigo-100 uppercase tracking-wider mb-1.5">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[10px] font-semibold text-indigo-100 uppercase tracking-wide mb-1">
                 Natijalarni kiritish oyi
               </label>
               <input
                 type="month"
                 value={resultsPeriod}
                 onChange={(e) => setResultsPeriod(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg bg-white text-gray-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full h-8 px-2 rounded-md bg-white text-gray-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
-              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-indigo-100">
-                {resultsPeriod ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                <span>{resultsPeriod ? `Faqat ${resultsPeriod} oyi natijalari kiritiladi` : "Chegara yo'q"}</span>
+              <div className="flex items-center gap-1 mt-1 text-[10px] text-indigo-100/90">
+                {resultsPeriod ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+                <span className="truncate">{resultsPeriod ? `Faqat ${resultsPeriod}` : "Chegara yo'q"}</span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 pb-4">
+              <button
+                onClick={handleSave}
+                disabled={mutation.isPending}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-white text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 font-semibold text-xs transition-all whitespace-nowrap"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {mutation.isPending ? "..." : "Saqlash"}
+              </button>
+              {savedFlash && (
+                <span className="text-emerald-200 text-xs font-semibold">✓</span>
+              )}
             </div>
           </div>
         )}
-
-        <div className="flex items-center gap-3 mt-4">
-          <button
-            onClick={handleSave}
-            disabled={mutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 font-semibold text-sm transition-all"
-          >
-            <Save className="h-4 w-4" />
-            {mutation.isPending ? "Saqlanmoqda..." : "Saqlash"}
-          </button>
-          {savedFlash && (
-            <span className="text-emerald-200 text-sm font-semibold">Saqlandi</span>
-          )}
-          {mutation.isError && (
-            <span className="text-red-200 text-sm">Xato: {(mutation.error as Error).message}</span>
-          )}
-        </div>
+        {mutation.isError && (
+          <div className="text-red-200 text-xs mt-2">Xato: {(mutation.error as Error).message}</div>
+        )}
       </div>
     </div>
   );

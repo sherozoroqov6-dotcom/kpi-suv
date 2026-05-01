@@ -368,6 +368,13 @@ router.get("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
 // ─── PUT /employees/:id ───────────────────────────────────────────────────────
 
 router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Faqat super admin (5279606) va admin xodim ma'lumotlarini tahrirlay oladi.
+  // Boshqa rollar (manager, employee) — taqiqlangan.
+  const isSuperUser = req.user?.username === "5279606";
+  if (!isSuperUser && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Faqat admin xodim ma'lumotlarini tahrirlay oladi" });
+    return;
+  }
   const id = parseInt(req.params["id"] as string);
   const {
     fullName, position, departmentId, phone, email, hireDate, status, tuman,

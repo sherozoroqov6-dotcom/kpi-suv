@@ -282,10 +282,20 @@ export default function WorkPlanDetail() {
   const isAdminOrManager = user?.role === "admin" || user?.role === "manager";
   const isIjroResponsibleUser = !!(user as any)?.isIjroResponsible;
   const isMehnatResponsibleUser = !!(user as any)?.isMehnatResponsible;
+  const isSuperUser = (user as any)?.username === "5279606";
   // Ijro intizomi: faqat Ijro.gov mas'uli kirita oladi (admin/manager ham yo'q)
   const canEditIjroTask = isIjroResponsibleUser;
   // Malaka talabi: faqat Mehnat intizomi mas'uli kirita oladi (admin/manager ham yo'q)
   const canEditMehnatTask = isMehnatResponsibleUser;
+
+  // Global app_settings.resultsEnterPeriod — super admin tomonidan belgilanadi.
+  // Agar belgilangan bo'lsa va joriy reja oyiga to'g'ri kelmasa — manual vazifalar
+  // uchun "Amalda kiritish" va "PDF yuklash" tugmalari bloklanadi.
+  const { data: appSettings } = useQuery<{ workPlanCreatePeriod: string | null; resultsEnterPeriod: string | null }>({
+    queryKey: ["app-settings"],
+    queryFn: () => customFetch(`${BASE}/api/app-settings`),
+    staleTime: 0,
+  });
 
   const { data: mfylarData = [] } = useQuery({
     queryKey: ["mfylar", selectedTuman],
@@ -327,6 +337,12 @@ export default function WorkPlanDetail() {
   const { data: plan, isLoading } = useGetWorkPlan(id, {
     query: { queryKey: getGetWorkPlanQueryKey(id), enabled: !!id },
   });
+
+  // Manual vazifalar uchun "Amalda kiritish" / "PDF yuklash" ruxsatini global oy bilan tekshirish.
+  // Super admin har doim, boshqa hamma — faqat allowedPeriod (yoki NULL = chegara yo'q) holatida.
+  const allowedResultsPeriod = appSettings?.resultsEnterPeriod ?? null;
+  const resultsLockedForPlan =
+    !isSuperUser && !!allowedResultsPeriod && !!plan?.period && allowedResultsPeriod !== plan.period;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetWorkPlanQueryKey(id) });
 
@@ -865,8 +881,12 @@ export default function WorkPlanDetail() {
     try {
       const formData = new FormData();
       formData.append("pdf", file);
-      const res = await fetch(`${BASE}/api/work-plans/upload-pdf`, { method: "POST", body: formData, credentials: "include" });
-      if (!res.ok) throw new Error("Upload failed");
+      const res = await fetch(`${BASE}/api/work-plans/upload-pdf?planId=${id}`, { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) {
+        let msg = "Upload failed";
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
       const data = (await res.json()) as { url: string };
       const pdfUrl = data.url;
       setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], pdfUrl, uploading: false } }));
@@ -877,8 +897,8 @@ export default function WorkPlanDetail() {
       } as any);
       invalidate();
       toast({ title: "PDF yuklandi va saqlandi" });
-    } catch {
-      toast({ title: "PDF yuklashda xatolik", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: e?.message || "PDF yuklashda xatolik", variant: "destructive" });
       setProgressEdits((p) => ({ ...p, [taskId]: { ...p[taskId], uploading: false } }));
     }
   };
@@ -1451,7 +1471,15 @@ export default function WorkPlanDetail() {
                       {isLocked && !isSection && (
                         <>
                           <td className="px-1 py-1 border-r">
-                            {editingProgressIds.has(task.id) ? (
+                            {resultsLockedForPlan ? (
+                              <div
+                                className="flex items-center gap-1"
+                                title={`Faqat ${allowedResultsPeriod} oyiga ruxsat berilgan`}
+                              >
+                                <span className="text-xs font-medium text-gray-400">{task.actualVolume || "—"}</span>
+                                <span className="text-[10px] text-amber-600">🔒</span>
+                              </div>
+                            ) : editingProgressIds.has(task.id) ? (
                               <div className="flex items-center gap-1">
                                 <input
                                   type="text"
@@ -1502,11 +1530,22 @@ export default function WorkPlanDetail() {
                             />
                             <div className="flex flex-col items-center gap-0.5">
                               <button
-                                onClick={() => fileInputRefs.current[task.id]?.click()}
-                                disabled={progressEdits[task.id]?.uploading}
-                                className="text-[10px] bg-green-600 hover:bg-green-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 whitespace-nowrap"
+                                onClick={() => {
+                                  if (resultsLockedForPlan) {
+                                    toast({
+                                      title: `Faqat ${allowedResultsPeriod} oyiga ruxsat berilgan`,
+                                      description: `Bu reja ${plan.period} oyiga tegishli`,
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  fileInputRefs.current[task.id]?.click();
+                                }}
+                                disabled={progressEdits[task.id]?.uploading || resultsLockedForPlan}
+                                title={resultsLockedForPlan ? `Faqat ${allowedResultsPeriod} oyiga ruxsat berilgan` : ""}
+                                className="text-[10px] bg-green-600 hover:bg-green-700 text-white rounded px-1.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                               >
-                                {progressEdits[task.id]?.uploading ? "Yuklanmoqda..." : "PDF yuklash"}
+                                {progressEdits[task.id]?.uploading ? "Yuklanmoqda..." : resultsLockedForPlan ? "🔒 PDF yuklash" : "PDF yuklash"}
                               </button>
                               {(() => {
                                 const rawUrl = progressEdits[task.id]?.pdfUrl ?? task.pdfUrl;

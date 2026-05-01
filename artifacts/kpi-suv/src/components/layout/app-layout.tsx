@@ -154,7 +154,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   {bottomItems.map((item) => (
                     <NavItem key={item.href} {...item} location={location} />
                   ))}
-                  {user?.viloyat && (
+                  {user?.role === "admin" && (
                     <NavItem
                       href="/approve"
                       icon={BadgeCheck}

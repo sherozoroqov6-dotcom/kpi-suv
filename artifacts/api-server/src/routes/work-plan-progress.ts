@@ -81,6 +81,20 @@ router.patch(
     const isIjroTask = currentTask.category === "ijro";
     const isMehnatTask = currentTask.category === "mehnat";
 
+    // Admin uchun "natijalarni kiritish" ruxsati: super admin yoki canEnterResults
+    // Eslatma: ijro/mehnat avto-tasklarini avval o'z mas'ullari boshqaradi (pastdagi tekshiruvlar) —
+    // shuning uchun bu cheklovni faqat oddiy (manual) tasklar uchun va admin uchun qo'llaymiz.
+    const isSuperUser = req.user!.username === "5279606";
+    if (!isSuperUser && req.user!.role === "admin" && !isIjroTask && !isMehnatTask) {
+      const [adminExt] = await db
+        .select({ canEnterResults: usersTable.canEnterResults })
+        .from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);
+      if (!adminExt?.canEnterResults) {
+        res.status(403).json({ error: "Sizga oylik ish reja natijalarini kiritish uchun ruxsat berilmagan. Super admin bilan bog'laning." });
+        return;
+      }
+    }
+
     // Ijro vazifasi: faqat Ijro.gov mas'uli (yoki admin/manager) yangilashi mumkin
     // Mehnat (Malaka talabi) vazifasi: FAQAT Mehnat intizomi mas'uli (admin/manager ham YO'Q)
     if (isIjroTask || isMehnatTask) {

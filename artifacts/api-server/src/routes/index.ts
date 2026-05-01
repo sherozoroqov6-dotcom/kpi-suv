@@ -11,6 +11,7 @@ import workPlansRouter from "./work-plans.js";
 import workPlanProgressRouter from "./work-plan-progress.js";
 import approveRouter from "./approve.js";
 import mfylarRouter from "./mfylar.js";
+import appSettingsRouter from "./app-settings.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(workPlansRouter);
 router.use(workPlanProgressRouter);
 router.use(approveRouter);
 router.use(mfylarRouter);
+router.use(appSettingsRouter);
 
 export default router;

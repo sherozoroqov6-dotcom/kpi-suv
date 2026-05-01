@@ -203,7 +203,8 @@ function WorkPlanDetailModal({
   };
 
   if (!plan) return null;
-  const canAct = plan.status === "submitted" || plan.status === "pending" || plan.status === "draft";
+  const isAdminUser = user?.role === "admin";
+  const canAct = isAdminUser && (plan.status === "submitted" || plan.status === "pending" || plan.status === "draft");
   const realTasks = (plan.tasks ?? []).filter((task: any) => !task.isSection);
   let taskCounter = 0;
   const taskStatusConfig = getTaskStatusConfig(t as TFn);
@@ -499,7 +500,7 @@ function WorkPlanDetailModal({
 }
 
 /* ─── Work Plans Tab ─── */
-function WorkPlansTab({ filterStatus }: { filterStatus: string }) {
+function WorkPlansTab({ filterStatus, isAdmin }: { filterStatus: string; isAdmin: boolean }) {
   const { t, d } = useLang();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -550,7 +551,7 @@ function WorkPlansTab({ filterStatus }: { filterStatus: string }) {
   };
 
   const canAct = (status: string) =>
-    status === "submitted" || status === "pending" || status === "draft";
+    isAdmin && (status === "submitted" || status === "pending" || status === "draft");
 
   return (
     <div className="space-y-4">
@@ -850,8 +851,13 @@ export default function ApprovePage() {
   const [activeTabKey, setActiveTabKey] = useState<"work_plans" | "evaluations">("work_plans");
   const [filterStatus, setFilterStatus] = useState<string>("pending");
 
-  // Faqat admin uchun — boshqalar ko'rmasin
-  if (me && me.role !== "admin") {
+  // Ruxsat: admin YOKI Ijro/Mehnat mas'uli
+  const isAdminUser = me?.role === "admin";
+  const isIjroResp = !!(me as any)?.isIjroResponsible;
+  const isMehnatResp = !!(me as any)?.isMehnatResponsible;
+  const hasAccess = isAdminUser || isIjroResp || isMehnatResp;
+
+  if (me && !hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="h-16 w-16 rounded-2xl bg-red-100 flex items-center justify-center mb-4">
@@ -859,7 +865,7 @@ export default function ApprovePage() {
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-2">Ruxsat yo'q</h2>
         <p className="text-sm text-gray-500 max-w-md">
-          Tasdiqlash paneli faqat administratorlar uchun mo'ljallangan.
+          Bu sahifa faqat administrator yoki Ijro/Mehnat mas'ullari uchun.
           Sizning rolingiz: <span className="font-semibold">{me.role}</span>
         </p>
       </div>
@@ -868,10 +874,15 @@ export default function ApprovePage() {
 
   const viloyatLabel = me?.viloyat ? getViloyatLabel(me.viloyat) : null;
 
-  const TABS = [
-    { key: "work_plans" as const,   label: t("tab_work_plans"),  icon: ClipboardList },
-    { key: "evaluations" as const,  label: t("tab_evaluations"), icon: BarChart3 },
-  ];
+  const TABS = isAdminUser
+    ? [
+        { key: "work_plans" as const,   label: t("tab_work_plans"),  icon: ClipboardList },
+        { key: "evaluations" as const,  label: t("tab_evaluations"), icon: BarChart3 },
+      ]
+    : [
+        // Ijro/Mehnat mas'ullari uchun faqat ish rejalar
+        { key: "work_plans" as const,   label: t("tab_work_plans"),  icon: ClipboardList },
+      ];
 
   const STATUS_TABS = [
     { key: "pending",  label: t("status_pending") },
@@ -934,7 +945,7 @@ export default function ApprovePage() {
 
       {/* Tarkib */}
       {activeTabKey === "work_plans"
-        ? <WorkPlansTab filterStatus={filterStatus} />
+        ? <WorkPlansTab filterStatus={filterStatus} isAdmin={isAdminUser} />
         : <EvaluationsTab filterStatus={filterStatus} />
       }
     </div>

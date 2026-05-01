@@ -42,6 +42,14 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
     name: "work_plan_tasks.mehnat_result",
     sql: `ALTER TABLE work_plan_tasks ADD COLUMN IF NOT EXISTS mehnat_result TEXT`,
   },
+  {
+    name: "users.can_create_work_plans",
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create_work_plans BOOLEAN NOT NULL DEFAULT FALSE`,
+  },
+  {
+    name: "users.can_enter_results",
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS can_enter_results BOOLEAN NOT NULL DEFAULT FALSE`,
+  },
 ];
 
 const RENAMES: Array<{ name: string; sql: string }> = [

@@ -69,6 +69,7 @@ async function getPlanScope(adminUserId: number): Promise<{ empIds: number[]; tu
    WORK PLANS approval
 ══════════════════════════════════════════════════════════════ */
 router.get("/approve/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const userId = req.user!.id;
   const { status = "pending" } = req.query as { status?: string };
 
@@ -126,6 +127,7 @@ router.get("/approve/work-plans", requireAuth, async (req: AuthenticatedRequest,
 });
 
 router.put("/approve/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const id = parseInt(req.params["id"] as string);
   const userId = req.user!.id;
   const { action, comment } = req.body as { action: "approve" | "reject"; comment?: string };
@@ -164,6 +166,7 @@ router.put("/approve/work-plans/:id", requireAuth, async (req: AuthenticatedRequ
    EVALUATIONS approval
 ══════════════════════════════════════════════════════════════ */
 router.get("/approve/evaluations", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const userId = req.user!.id;
   const { status = "pending" } = req.query as { status?: string };
 
@@ -213,6 +216,7 @@ router.get("/approve/evaluations", requireAuth, async (req: AuthenticatedRequest
 });
 
 router.put("/approve/evaluations/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const id = parseInt(req.params["id"] as string);
   const userId = req.user!.id;
   const { action, rejectionReason } = req.body as { action: "approve" | "reject"; rejectionReason?: string };
@@ -246,6 +250,7 @@ router.put("/approve/evaluations/:id", requireAuth, async (req: AuthenticatedReq
    EXCEL EXPORT — all data for user's region
 ══════════════════════════════════════════════════════════════ */
 router.get("/approve/export-data", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const userId = req.user!.id;
   const { type } = req.query as { type?: string };
 

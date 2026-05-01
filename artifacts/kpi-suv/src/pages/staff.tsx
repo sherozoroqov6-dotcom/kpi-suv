@@ -84,7 +84,10 @@ export default function Staff() {
   const { toast } = useToast();
   const { selectedTuman, showAllTumans, viloyatTumanlar } = useRegion();
   const { data: currentUser } = useGetMe();
-  const canEdit = currentUser?.role === "admin" || currentUser?.role === "manager";
+  // Faqat super admin va admin Xodimlar/Bo'limlar ma'lumotlarini tahrirlash va o'chirish huquqiga ega.
+  // Manager, employee va boshqa rollar — faqat ko'rish.
+  const isSuperUser = (currentUser as any)?.username === "5279606";
+  const canEdit = isSuperUser || currentUser?.role === "admin";
   const currentEmpId = (currentUser as any)?.employeeId ?? null;
 
   /* ── Bo'limlar state ── */
@@ -335,24 +338,26 @@ export default function Staff() {
                       <Badge variant="outline" className="text-xs">{d.employeeCount} kishi</Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDept(d)}>
-                            <Pencil className="mr-2 h-4 w-4" />{t("btn_edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => { setSelectedDept(d); setDeptDeleteOpen(true); }}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />{t("btn_delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {canEdit ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDept(d)}>
+                              <Pencil className="mr-2 h-4 w-4" />{t("btn_edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => { setSelectedDept(d); setDeptDeleteOpen(true); }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />{t("btn_delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))
@@ -495,24 +500,26 @@ export default function Staff() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditEmp(e)}>
-                            <Pencil className="mr-2 h-4 w-4" />{t("btn_edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => { setSelectedEmp(e); setEmpDeleteOpen(true); }}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />{t("btn_delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {canEdit ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditEmp(e)}>
+                              <Pencil className="mr-2 h-4 w-4" />{t("btn_edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => { setSelectedEmp(e); setEmpDeleteOpen(true); }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />{t("btn_delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))

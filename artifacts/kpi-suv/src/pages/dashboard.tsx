@@ -33,6 +33,7 @@ import { ScoreBadge } from "@/components/score-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { GlobalPeriodSettings } from "@/components/global-period-settings";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -358,27 +359,6 @@ export default function Dashboard() {
                   {t("xlsx_download")}
                 </button>
               )}
-              {/* Admin uchun ish reja amallari (super admin yoki ruxsat berilgan oddiy admin) */}
-              {user?.role === "admin" && (
-                <div className="flex flex-wrap items-center gap-2 justify-end">
-                  {((user as any)?.username === "5279606" || (user as any)?.canCreateWorkPlans) && (
-                    <Link
-                      href="/work-plans/new"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 border border-emerald-400 text-white text-xs font-semibold transition-all"
-                    >
-                      + Oylik ish reja kiritish
-                    </Link>
-                  )}
-                  {((user as any)?.username === "5279606" || (user as any)?.canEnterResults) && (
-                    <Link
-                      href="/work-plans"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/90 hover:bg-amber-500 border border-amber-400 text-white text-xs font-semibold transition-all"
-                    >
-                      Natijalarni kiritish
-                    </Link>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 
@@ -538,6 +518,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Super admin uchun global oylar sozlamasi */}
+      {user?.username === "5279606" && <GlobalPeriodSettings />}
 
       {/* Work Plan Stats Panel */}
       {tumanFilter && (

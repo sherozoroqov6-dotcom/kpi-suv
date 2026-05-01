@@ -6,3 +6,4 @@ export * from "./kpi_categories";
 export * from "./kpi_indicators";
 export * from "./evaluations";
 export * from "./work_plans";
+export * from "./app_settings";

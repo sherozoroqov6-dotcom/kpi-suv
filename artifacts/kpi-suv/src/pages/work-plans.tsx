@@ -106,6 +106,12 @@ export default function WorkPlans() {
 
   const { data: currentUser } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const isAdmin = currentUser?.role === "admin";
+  const isSuperAdmin = (currentUser as any)?.username === "5279606";
+  // Super admin har doim ish reja yarata oladi. Oddiy admin — faqat ruxsat berilgan bo'lsa.
+  // Boshqa rollar (manager/employee) — avvalgi xulq saqlanadi (yarata oladi).
+  const canCreatePlan = isSuperAdmin
+    || (isAdmin && (currentUser as any)?.canCreateWorkPlans)
+    || (currentUser && currentUser.role !== "admin");
 
   const canModify = (plan: any) =>
     isAdmin || (plan.status !== "approved" && plan.status !== "completed");
@@ -191,10 +197,12 @@ export default function WorkPlans() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("pg_work_plans")} description={t("pg_work_plans_desc")}>
-        <Button onClick={() => setLocation("/work-plans/new")}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t("lbl_new_plan")}
-        </Button>
+        {canCreatePlan && (
+          <Button onClick={() => setLocation("/work-plans/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t("lbl_new_plan")}
+          </Button>
+        )}
       </PageHeader>
 
       {/* Filters */}

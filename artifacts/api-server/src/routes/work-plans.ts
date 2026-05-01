@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Response } from "express";
 import { db } from "@workspace/db";
-import { workPlansTable, workPlanTasksTable, employeesTable, departmentsTable, usersTable } from "@workspace/db";
+import { workPlansTable, workPlanTasksTable, employeesTable, departmentsTable, usersTable, appSettingsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
 
@@ -274,17 +274,20 @@ router.post("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: R
 
   const currentUserId = req.user!.id;
 
-  // Ruxsatni tekshirish:
-  // - Super admin (5279606) — har doim mumkin
-  // - Oddiy admin — faqat super admin canCreateWorkPlans bersa
-  // - Manager/employee va boshqalar — ko'rsatilgan amal mumkin (avvalgi xulq saqlanadi)
+  // Global ruxsat oyini tekshirish:
+  // - Super admin (5279606) — har doim har qanday oyga reja yarata oladi
+  // - Boshqa hamma — faqat super admin tomonidan belgilangan oy uchun
+  // - Agar app_settings.work_plan_create_period NULL bo'lsa — chegara yo'q (hamma oy uchun mumkin)
   const isSuperUser = req.user!.username === "5279606";
-  if (!isSuperUser && req.user!.role === "admin") {
-    const [userExt] = await db
-      .select({ canCreateWorkPlans: usersTable.canCreateWorkPlans })
-      .from(usersTable).where(eq(usersTable.id, currentUserId)).limit(1);
-    if (!userExt?.canCreateWorkPlans) {
-      res.status(403).json({ error: "Sizga oylik ish reja yaratish uchun ruxsat berilmagan. Super admin bilan bog'laning." });
+  if (!isSuperUser) {
+    const [setting] = await db
+      .select({ workPlanCreatePeriod: appSettingsTable.workPlanCreatePeriod })
+      .from(appSettingsTable).where(eq(appSettingsTable.key, "global")).limit(1);
+    const allowedPeriod = setting?.workPlanCreatePeriod ?? null;
+    if (allowedPeriod && allowedPeriod !== period) {
+      res.status(403).json({
+        error: `Hozircha faqat ${allowedPeriod} oyi uchun ish reja yaratishga ruxsat berilgan. Boshqa oylar uchun super admin bilan bog'laning.`,
+      });
       return;
     }
   }

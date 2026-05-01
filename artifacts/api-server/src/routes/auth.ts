@@ -69,8 +69,6 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
       tuman: usersTable.tuman,
       employeeId: usersTable.employeeId,
       fullName: usersTable.fullName,
-      canCreateWorkPlans: usersTable.canCreateWorkPlans,
-      canEnterResults: usersTable.canEnterResults,
     })
     .from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
   const extra = dbUsers[0] ?? {};
@@ -117,8 +115,6 @@ router.get("/auth/me", requireAuth, async (req: AuthenticatedRequest, res: Respo
     employeeId,
     isIjroResponsible,
     isMehnatResponsible,
-    canCreateWorkPlans: !!extra.canCreateWorkPlans,
-    canEnterResults: !!extra.canEnterResults,
     viloyat: extra.viloyat ?? null,
     tuman: extra.tuman ?? null,
     createdAt: new Date().toISOString(),

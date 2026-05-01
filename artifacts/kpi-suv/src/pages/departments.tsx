@@ -72,7 +72,7 @@ export default function Departments() {
   const { t, d } = useLang();
   const { selectedTuman, showAllTumans, viloyatTumanlar } = useRegion();
   const { data: currentUser } = useGetMe();
-  const canEdit = currentUser?.role === "admin" || currentUser?.role === "manager";
+  const canEdit = currentUser?.role === "admin";
 
   const { data: departments, isLoading } = useQuery<any[]>({
     queryKey: ["departments", selectedTuman, showAllTumans, viloyatTumanlar.join(",")],

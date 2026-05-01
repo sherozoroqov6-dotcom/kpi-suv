@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Response } from "express";
 import { db } from "@workspace/db";
-import { workPlanTasksTable, workPlansTable, employeesTable, usersTable } from "@workspace/db";
+import { workPlanTasksTable, workPlansTable, employeesTable, usersTable, appSettingsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth.js";
 import multer from "multer";
@@ -81,16 +81,21 @@ router.patch(
     const isIjroTask = currentTask.category === "ijro";
     const isMehnatTask = currentTask.category === "mehnat";
 
-    // Admin uchun "natijalarni kiritish" ruxsati: super admin yoki canEnterResults
-    // Eslatma: ijro/mehnat avto-tasklarini avval o'z mas'ullari boshqaradi (pastdagi tekshiruvlar) —
-    // shuning uchun bu cheklovni faqat oddiy (manual) tasklar uchun va admin uchun qo'llaymiz.
+    // Global ruxsat oyini tekshirish (manual vazifalar uchun):
+    // - Super admin (5279606) — har qanday oyga natija kirita oladi
+    // - Boshqa hamma — faqat super admin tomonidan belgilangan oy uchun
+    // - Agar app_settings.results_enter_period NULL bo'lsa — chegara yo'q
+    // Ijro/Mehnat avto-vazifalari uchun bu cheklov qo'llanmaydi (ularni mas'ullar boshqaradi).
     const isSuperUser = req.user!.username === "5279606";
-    if (!isSuperUser && req.user!.role === "admin" && !isIjroTask && !isMehnatTask) {
-      const [adminExt] = await db
-        .select({ canEnterResults: usersTable.canEnterResults })
-        .from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);
-      if (!adminExt?.canEnterResults) {
-        res.status(403).json({ error: "Sizga oylik ish reja natijalarini kiritish uchun ruxsat berilmagan. Super admin bilan bog'laning." });
+    if (!isSuperUser && !isIjroTask && !isMehnatTask) {
+      const [setting] = await db
+        .select({ resultsEnterPeriod: appSettingsTable.resultsEnterPeriod })
+        .from(appSettingsTable).where(eq(appSettingsTable.key, "global")).limit(1);
+      const allowedPeriod = setting?.resultsEnterPeriod ?? null;
+      if (allowedPeriod && allowedPeriod !== plan.period) {
+        res.status(403).json({
+          error: `Hozircha faqat ${allowedPeriod} oyi ish reja natijalarini kiritishga ruxsat berilgan. Bu reja ${plan.period} oyiga tegishli.`,
+        });
         return;
       }
     }

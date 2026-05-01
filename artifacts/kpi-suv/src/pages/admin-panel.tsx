@@ -45,6 +45,8 @@ const createSchema = z.object({
   role: z.enum(["admin", "manager", "employee", "viewer"]),
   viloyat: z.string().optional(),
   tuman: z.string().optional(),
+  canCreateWorkPlans: z.boolean().optional(),
+  canEnterResults: z.boolean().optional(),
 });
 type CreateFormValues = z.infer<typeof createSchema>;
 
@@ -54,6 +56,8 @@ const editSchema = z.object({
   role: z.enum(["admin", "manager", "employee", "viewer"]),
   viloyat: z.string().optional(),
   tuman: z.string().optional(),
+  canCreateWorkPlans: z.boolean().optional(),
+  canEnterResults: z.boolean().optional(),
 });
 type EditFormValues = z.infer<typeof editSchema>;
 
@@ -180,10 +184,13 @@ export default function AdminPanel() {
   /* Form hooks */
   const createForm = useForm<CreateFormValues>({
     resolver: zodResolver(createSchema),
-    defaultValues: { username: "", password: "", fullName: "", role: "employee", viloyat: "", tuman: "" },
+    defaultValues: { username: "", password: "", fullName: "", role: "employee", viloyat: "", tuman: "", canCreateWorkPlans: false, canEnterResults: false },
   });
   const createViloyat = createForm.watch("viloyat");
   const createTuman   = createForm.watch("tuman");
+  const createRole    = createForm.watch("role");
+  const createCanCreate = createForm.watch("canCreateWorkPlans");
+  const createCanEnter  = createForm.watch("canEnterResults");
 
   const editForm = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
@@ -191,6 +198,9 @@ export default function AdminPanel() {
   });
   const editViloyat = editForm.watch("viloyat");
   const editTuman   = editForm.watch("tuman");
+  const editRole    = editForm.watch("role");
+  const editCanCreate = editForm.watch("canCreateWorkPlans");
+  const editCanEnter  = editForm.watch("canEnterResults");
 
   /* Mutations */
   const createMutation = useMutation({
@@ -241,7 +251,7 @@ export default function AdminPanel() {
   });
 
   const openCreate = () => {
-    createForm.reset({ username: "", password: "", fullName: "", role: "employee", viloyat: "", tuman: "" });
+    createForm.reset({ username: "", password: "", fullName: "", role: "employee", viloyat: "", tuman: "", canCreateWorkPlans: false, canEnterResults: false });
     setCreateEmpId("");
     setCreateOpen(true);
   };
@@ -254,6 +264,8 @@ export default function AdminPanel() {
       role: u.role || "employee",
       viloyat: u.viloyat || "",
       tuman: u.tuman || "",
+      canCreateWorkPlans: !!u.canCreateWorkPlans,
+      canEnterResults: !!u.canEnterResults,
     });
     setEditEmpId(u.employeeId ? String(u.employeeId) : "");
     setEditOpen(true);
@@ -427,7 +439,7 @@ export default function AdminPanel() {
 
               {/* Viloyat / Tuman */}
               <ViloyatTumanSelect
-                viloyatValue={createViloyat}
+                viloyatValue={createViloyat || ""}
                 tumanValue={createTuman || ""}
                 onViloyatChange={(v) => createForm.setValue("viloyat", v, { shouldValidate: true })}
                 onTumanChange={(v) => createForm.setValue("tuman", v)}
@@ -450,6 +462,32 @@ export default function AdminPanel() {
                   ))}
                 </select>
               </div>
+
+              {/* Admin uchun maxsus ruxsatlar */}
+              {createRole === "admin" && (
+                <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-900">Admin uchun ruxsatlar</p>
+                  <p className="text-xs text-amber-700">Ushbu admin foydalanuvchiga quyidagi amallarga ruxsat berish:</p>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!createCanCreate}
+                      onChange={(e) => createForm.setValue("canCreateWorkPlans", e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Oylik ish rejalarni kiritish</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!createCanEnter}
+                      onChange={(e) => createForm.setValue("canEnterResults", e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Oylik ish reja natijalarini kiritish</span>
+                  </label>
+                </div>
+              )}
 
               <DialogFooter className="pt-2">
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>{t("btn_cancel")}</Button>
@@ -504,7 +542,7 @@ export default function AdminPanel() {
               )} />
 
               <ViloyatTumanSelect
-                viloyatValue={editViloyat}
+                viloyatValue={editViloyat || ""}
                 tumanValue={editTuman || ""}
                 onViloyatChange={(v) => editForm.setValue("viloyat", v, { shouldValidate: true })}
                 onTumanChange={(v) => editForm.setValue("tuman", v)}
@@ -527,6 +565,32 @@ export default function AdminPanel() {
                   ))}
                 </select>
               </div>
+
+              {/* Admin uchun maxsus ruxsatlar */}
+              {editRole === "admin" && (
+                <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-900">Admin uchun ruxsatlar</p>
+                  <p className="text-xs text-amber-700">Ushbu admin foydalanuvchiga quyidagi amallarga ruxsat berish:</p>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!editCanCreate}
+                      onChange={(e) => editForm.setValue("canCreateWorkPlans", e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Oylik ish rejalarni kiritish</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!editCanEnter}
+                      onChange={(e) => editForm.setValue("canEnterResults", e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Oylik ish reja natijalarini kiritish</span>
+                  </label>
+                </div>
+              )}
 
               <DialogFooter className="pt-2">
                 <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>{t("btn_cancel")}</Button>

@@ -38,9 +38,36 @@ const upload = multer({
 const router: IRouter = Router();
 
 // ─── POST /work-plans/upload-pdf ────────────────────────────────────────────
+// Frontend `?planId=…` query bilan chaqiradi — biz reja oyini global app_settings'dagi
+// `results_enter_period` bilan solishtirib, mos kelmasa 403 qaytaramiz va faylni saqlamaymiz.
 router.post(
   "/work-plans/upload-pdf",
   requireAuth,
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    const isSuperUser = req.user?.username === "5279606";
+    if (isSuperUser) return next();
+
+    const planIdRaw = (req.query["planId"] ?? req.query["plan_id"]) as string | undefined;
+    const planId = planIdRaw ? parseInt(planIdRaw, 10) : NaN;
+    if (!isNaN(planId)) {
+      const [plan] = await db
+        .select({ period: workPlansTable.period })
+        .from(workPlansTable).where(eq(workPlansTable.id, planId)).limit(1);
+      if (plan) {
+        const [setting] = await db
+          .select({ resultsEnterPeriod: appSettingsTable.resultsEnterPeriod })
+          .from(appSettingsTable).where(eq(appSettingsTable.key, "global")).limit(1);
+        const allowedPeriod = setting?.resultsEnterPeriod ?? null;
+        if (allowedPeriod && allowedPeriod !== plan.period) {
+          res.status(403).json({
+            error: `Hozircha faqat ${allowedPeriod} oyi ish reja natijalarini kiritishga ruxsat berilgan. Bu reja ${plan.period} oyiga tegishli.`,
+          });
+          return;
+        }
+      }
+    }
+    next();
+  },
   upload.single("pdf"),
   (req: AuthenticatedRequest, res: Response) => {
     if (!req.file) {

@@ -36,6 +36,13 @@ export interface User {
   fullName: string;
   role: UserRole;
   departmentId?: number | null;
+  employeeId?: number | null;
+  isIjroResponsible?: boolean;
+  isMehnatResponsible?: boolean;
+  canCreateWorkPlans?: boolean;
+  canEnterResults?: boolean;
+  viloyat?: string | null;
+  tuman?: string | null;
   createdAt: string;
 }
 

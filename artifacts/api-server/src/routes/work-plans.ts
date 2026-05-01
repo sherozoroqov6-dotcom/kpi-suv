@@ -453,6 +453,11 @@ router.put("/work-plans/:id/tasks/:taskId", requireAuth, async (req: Authenticat
     res.status(403).json({ error: "Avto-vazifa (ijro/mehnat) faqat o'zining maxsus interfeysi orqali tahrirlanadi" });
     return;
   }
+  // BU ROUTE FAQAT VAZIFA TA'RIFINI yangilaydi (definition-only).
+  // Natija field'lari (`actualVolume`, `actualResult`, `completionPercentage`,
+  // `pdfUrl`, `status`) shu yerda QABUL QILINMAYDI — ular faqat
+  // `PATCH /work-plans/:planId/tasks/:taskId/progress` orqali yoziladi
+  // (u yerda global oy chegarasi tekshiriladi).
   const [task] = await db.update(workPlanTasksTable).set({
     orderNum: t.orderNum ?? 1,
     isSection: t.isSection ?? false,
@@ -461,16 +466,12 @@ router.put("/work-plans/:id/tasks/:taskId", requireAuth, async (req: Authenticat
     fundingSource: t.fundingSource ?? null,
     unitOfMeasure: t.unitOfMeasure ?? null,
     plannedVolume: t.plannedVolume ?? null,
-    actualVolume: t.actualVolume ?? null,
-    completionPercentage: t.completionPercentage ?? 0,
     responsiblePerson: t.responsiblePerson ?? null,
     location: t.location ?? null,
     controller: t.controller ?? null,
     startDate: t.startDate ?? null,
     deadline: t.deadline ?? null,
     expectedResult: t.expectedResult ?? null,
-    actualResult: t.actualResult ?? null,
-    status: t.status ?? "pending",
   }).where(eq(workPlanTasksTable.id, taskId)).returning();
   if (!task) { res.status(404).json({ error: "Vazifa topilmadi" }); return; }
   res.json(mapTask(task));

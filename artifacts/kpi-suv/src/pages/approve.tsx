@@ -850,6 +850,22 @@ export default function ApprovePage() {
   const [activeTabKey, setActiveTabKey] = useState<"work_plans" | "evaluations">("work_plans");
   const [filterStatus, setFilterStatus] = useState<string>("pending");
 
+  // Faqat admin uchun — boshqalar ko'rmasin
+  if (me && me.role !== "admin") {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="h-16 w-16 rounded-2xl bg-red-100 flex items-center justify-center mb-4">
+          <BadgeCheck className="h-8 w-8 text-red-500" />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 mb-2">Ruxsat yo'q</h2>
+        <p className="text-sm text-gray-500 max-w-md">
+          Tasdiqlash paneli faqat administratorlar uchun mo'ljallangan.
+          Sizning rolingiz: <span className="font-semibold">{me.role}</span>
+        </p>
+      </div>
+    );
+  }
+
   const viloyatLabel = me?.viloyat ? getViloyatLabel(me.viloyat) : null;
 
   const TABS = [

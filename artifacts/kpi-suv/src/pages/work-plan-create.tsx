@@ -107,7 +107,24 @@ export default function WorkPlanCreate() {
   const approverName = approverData?.fullName ?? "";
 
   const [employeeId, setEmployeeId] = useState("");
-  const [period, setPeriod] = useState(currentMonth);
+  // Global app_settings.workPlanCreatePeriod — super admin tomonidan belgilanadi.
+  // Super admin (5279606) uchun chegara yo'q.
+  const isSuperUser = (currentUser as any)?.username === "5279606";
+  const { data: appSettings } = useQuery<{ workPlanCreatePeriod: string | null; resultsEnterPeriod: string | null }>({
+    queryKey: ["app-settings"],
+    queryFn: () => customFetch(`${BASE}/api/app-settings`),
+    staleTime: 0,
+  });
+  const restrictedCreatePeriod: string | null =
+    !isSuperUser && appSettings?.workPlanCreatePeriod ? appSettings.workPlanCreatePeriod : null;
+  const [period, setPeriod] = useState(restrictedCreatePeriod || currentMonth);
+  // Period restriction o'zgarsa avtomatik o'rnatish
+  useEffect(() => {
+    if (restrictedCreatePeriod && period !== restrictedCreatePeriod) {
+      setPeriod(restrictedCreatePeriod);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restrictedCreatePeriod]);
   const [rows, setRows] = useState<Row[]>([emptyTask()]);
   const [submitAfterSave, setSubmitAfterSave] = useState(false);
   const [kpiLoaded, setKpiLoaded] = useState(false);
@@ -323,6 +340,7 @@ export default function WorkPlanCreate() {
             <Select
               value={String(periodMonthIdx + 1).padStart(2, "0")}
               onValueChange={(v) => setPeriod(`${periodYear}-${v}`)}
+              disabled={!!restrictedCreatePeriod}
             >
               <SelectTrigger className="h-8 text-xs w-32 border-gray-300">
                 <SelectValue />
@@ -338,6 +356,7 @@ export default function WorkPlanCreate() {
             <Select
               value={periodYear}
               onValueChange={(v) => setPeriod(`${v}-${period.slice(5, 7)}`)}
+              disabled={!!restrictedCreatePeriod}
             >
               <SelectTrigger className="h-8 text-xs w-20 border-gray-300">
                 <SelectValue />
@@ -350,6 +369,11 @@ export default function WorkPlanCreate() {
                 ))}
               </SelectContent>
             </Select>
+            {restrictedCreatePeriod && (
+              <span className="text-[11px] text-amber-700 ml-1" title="Super admin tomonidan belgilangan oy">
+                🔒
+              </span>
+            )}
           </div>
           <Button variant="outline" size="sm" onClick={() => handleSave(false)} disabled={isPending}>
             <Save className="h-3.5 w-3.5 mr-1.5" />

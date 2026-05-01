@@ -25,8 +25,6 @@ router.get("/admin/users", requireAuth, requireSuperUser, async (req: Authentica
       role: usersTable.role,
       viloyat: usersTable.viloyat,
       tuman: usersTable.tuman,
-      canCreateWorkPlans: usersTable.canCreateWorkPlans,
-      canEnterResults: usersTable.canEnterResults,
       createdAt: usersTable.createdAt,
     })
     .from(usersTable)
@@ -35,7 +33,7 @@ router.get("/admin/users", requireAuth, requireSuperUser, async (req: Authentica
 });
 
 router.post("/admin/users", requireAuth, requireSuperUser, async (req: AuthenticatedRequest, res: Response) => {
-  const { username, password, fullName, role, viloyat, tuman, employeeId, canCreateWorkPlans, canEnterResults } = req.body as {
+  const { username, password, fullName, role, viloyat, tuman, employeeId } = req.body as {
     username?: string;
     password?: string;
     fullName?: string;
@@ -43,8 +41,6 @@ router.post("/admin/users", requireAuth, requireSuperUser, async (req: Authentic
     viloyat?: string;
     tuman?: string;
     employeeId?: number | null;
-    canCreateWorkPlans?: boolean;
-    canEnterResults?: boolean;
   };
 
   if (!username || !password) {
@@ -77,8 +73,6 @@ router.post("/admin/users", requireAuth, requireSuperUser, async (req: Authentic
       viloyat: viloyat || null,
       tuman: tuman || null,
       employeeId: employeeId || null,
-      canCreateWorkPlans: !!canCreateWorkPlans,
-      canEnterResults: !!canEnterResults,
     })
     .returning({
       id: usersTable.id,
@@ -87,8 +81,6 @@ router.post("/admin/users", requireAuth, requireSuperUser, async (req: Authentic
       role: usersTable.role,
       viloyat: usersTable.viloyat,
       tuman: usersTable.tuman,
-      canCreateWorkPlans: usersTable.canCreateWorkPlans,
-      canEnterResults: usersTable.canEnterResults,
       createdAt: usersTable.createdAt,
     });
 
@@ -97,15 +89,13 @@ router.post("/admin/users", requireAuth, requireSuperUser, async (req: Authentic
 
 router.put("/admin/users/:id", requireAuth, requireSuperUser, async (req: AuthenticatedRequest, res: Response) => {
   const id = Number(req.params.id);
-  const { password, fullName, role, viloyat, tuman, employeeId, canCreateWorkPlans, canEnterResults } = req.body as {
+  const { password, fullName, role, viloyat, tuman, employeeId } = req.body as {
     password?: string;
     fullName?: string;
     role?: string;
     viloyat?: string;
     tuman?: string;
     employeeId?: number | null;
-    canCreateWorkPlans?: boolean;
-    canEnterResults?: boolean;
   };
 
   const updates: any = {};
@@ -115,8 +105,6 @@ router.put("/admin/users/:id", requireAuth, requireSuperUser, async (req: Authen
   if (viloyat !== undefined) updates.viloyat = viloyat || null;
   updates.tuman = tuman || null;
   updates.employeeId = employeeId || null;
-  if (canCreateWorkPlans !== undefined) updates.canCreateWorkPlans = !!canCreateWorkPlans;
-  if (canEnterResults !== undefined) updates.canEnterResults = !!canEnterResults;
 
   const [user] = await db
     .update(usersTable)
@@ -129,8 +117,6 @@ router.put("/admin/users/:id", requireAuth, requireSuperUser, async (req: Authen
       role: usersTable.role,
       viloyat: usersTable.viloyat,
       tuman: usersTable.tuman,
-      canCreateWorkPlans: usersTable.canCreateWorkPlans,
-      canEnterResults: usersTable.canEnterResults,
     });
 
   if (!user) {

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,9 @@ export const usersTable = pgTable("users", {
   employeeId: integer("employee_id"),
   viloyat: text("viloyat"),
   tuman: text("tuman"),
+  // Super admin tomonidan oddiy adminlarga beriladigan ruxsatlar:
+  canCreateWorkPlans: boolean("can_create_work_plans").notNull().default(false),
+  canEnterResults: boolean("can_enter_results").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

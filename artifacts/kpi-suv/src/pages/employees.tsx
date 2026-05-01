@@ -96,7 +96,7 @@ export default function Employees() {
   const { toast } = useToast();
   const { selectedTuman, showAllTumans, viloyatTumanlar } = useRegion();
   const { data: currentUser } = useGetMe();
-  const canEdit = currentUser?.role === "admin" || currentUser?.role === "manager";
+  const canEdit = currentUser?.role === "admin";
 
   const { data: employees, isLoading } = useQuery<any[]>({
     queryKey: ["employees", selectedTuman, showAllTumans, viloyatTumanlar.join(","), search, departmentId],

@@ -301,7 +301,49 @@ router.get("/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res
   const id = parseInt(req.params["id"] as string);
   const plans = await db.select().from(workPlansTable).where(eq(workPlansTable.id, id)).limit(1);
   if (plans.length === 0) { res.status(404).json({ error: "Ish reja topilmadi" }); return; }
-  res.json(await enrichPlan(plans[0]));
+  const plan = plans[0];
+
+  // Xavfsizlik: foydalanuvchi bu plan'ga ruxsatga egami?
+  const [userExt] = await db
+    .select({ employeeId: usersTable.employeeId, tuman: usersTable.tuman })
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user!.id))
+    .limit(1);
+  const isAdmin = req.user!.role === "admin";
+  const currentUserId = req.user!.id;
+
+  let allowed = false;
+  if (!isAdmin) {
+    // Oddiy xodim: faqat o'z planini (userId yoki linked employeeId)
+    if (plan.userId === currentUserId) allowed = true;
+    if (!allowed && userExt?.employeeId && plan.employeeId === userExt.employeeId) allowed = true;
+    // Ijro/Mehnat mas'uli (global flag, employees jadvalida) — ularga ham ruxsat
+    if (!allowed && userExt?.employeeId) {
+      const [respEmp] = await db
+        .select({ ijro: employeesTable.isIjroResponsible, mehnat: employeesTable.isMehnatResponsible })
+        .from(employeesTable)
+        .where(eq(employeesTable.id, userExt.employeeId))
+        .limit(1);
+      if (respEmp?.ijro || respEmp?.mehnat) allowed = true;
+    }
+  } else if (!userExt?.tuman) {
+    // Super admin (tuman yo'q) → barcha planlar
+    allowed = true;
+  } else {
+    // Tuman admin → faqat o'z tumaniga tegishli planlar
+    if (plan.userId) {
+      const [planUser] = await db.select({ tuman: usersTable.tuman }).from(usersTable).where(eq(usersTable.id, plan.userId)).limit(1);
+      if (planUser?.tuman === userExt.tuman) allowed = true;
+    }
+    if (!allowed && plan.employeeId) {
+      const [planEmp] = await db.select({ tuman: employeesTable.tuman }).from(employeesTable).where(eq(employeesTable.id, plan.employeeId)).limit(1);
+      if (planEmp?.tuman === userExt.tuman) allowed = true;
+    }
+  }
+
+  if (!allowed) { res.status(403).json({ error: "Bu rejani ko'rishga ruxsatingiz yo'q" }); return; }
+
+  res.json(await enrichPlan(plan));
 });
 
 router.put("/work-plans/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {

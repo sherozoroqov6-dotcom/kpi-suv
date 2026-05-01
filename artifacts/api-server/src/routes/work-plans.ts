@@ -273,6 +273,22 @@ router.post("/work-plans", requireAuth, async (req: AuthenticatedRequest, res: R
   }
 
   const currentUserId = req.user!.id;
+
+  // Ruxsatni tekshirish:
+  // - Super admin (5279606) — har doim mumkin
+  // - Oddiy admin — faqat super admin canCreateWorkPlans bersa
+  // - Manager/employee va boshqalar — ko'rsatilgan amal mumkin (avvalgi xulq saqlanadi)
+  const isSuperUser = req.user!.username === "5279606";
+  if (!isSuperUser && req.user!.role === "admin") {
+    const [userExt] = await db
+      .select({ canCreateWorkPlans: usersTable.canCreateWorkPlans })
+      .from(usersTable).where(eq(usersTable.id, currentUserId)).limit(1);
+    if (!userExt?.canCreateWorkPlans) {
+      res.status(403).json({ error: "Sizga oylik ish reja yaratish uchun ruxsat berilmagan. Super admin bilan bog'laning." });
+      return;
+    }
+  }
+
   // employeeId: agar body da kelsa yoki user yozuvida bo'lsa ishlatiladi, aks holda null
   let employeeId: number | null = bodyEmployeeId ?? null;
   if (!employeeId) {

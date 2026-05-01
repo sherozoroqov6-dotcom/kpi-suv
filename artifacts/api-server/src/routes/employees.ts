@@ -160,8 +160,8 @@ router.get("/employees/approver", requireAuth, async (req: AuthenticatedRequest,
 
 router.post("/employees", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const role = req.user!.role;
-  if (role !== "admin" && role !== "manager") {
-    res.status(403).json({ error: "Faqat admin yoki manager xodim qo'sha oladi" });
+  if (role !== "admin") {
+    res.status(403).json({ error: "Faqat admin xodim qo'sha oladi" });
     return;
   }
   const {
@@ -338,11 +338,11 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
   }
 
   // Avtorizatsiya:
-  //  • admin/manager — to'liq tahrir
+  //  • admin — to'liq tahrir
   //  • Ijro.gov mas'uli — faqat isIjroAssigned ni almashtirishi mumkin (boshqa maydonlar saqlanadi)
-  //  • Boshqalar — taqiqlanadi
+  //  • Boshqalar (jumladan manager) — taqiqlanadi
   const role = req.user!.role;
-  const isAdminOrManager = role === "admin" || role === "manager";
+  const isAdminOrManager = role === "admin";
 
   let isIjroRespUser = false;
   if (!isAdminOrManager) {
@@ -508,8 +508,8 @@ router.put("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res:
 
 router.delete("/employees/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const role = req.user!.role;
-  if (role !== "admin" && role !== "manager") {
-    res.status(403).json({ error: "Faqat admin yoki manager xodimni o'chira oladi" });
+  if (role !== "admin") {
+    res.status(403).json({ error: "Faqat admin xodimni o'chira oladi" });
     return;
   }
   const id = parseInt(req.params["id"] as string);

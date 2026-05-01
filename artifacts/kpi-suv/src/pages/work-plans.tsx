@@ -106,12 +106,9 @@ export default function WorkPlans() {
 
   const { data: currentUser } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const isAdmin = currentUser?.role === "admin";
-  const isSuperAdmin = (currentUser as any)?.username === "5279606";
-  // Super admin har doim ish reja yarata oladi. Oddiy admin — faqat ruxsat berilgan bo'lsa.
-  // Boshqa rollar (manager/employee) — avvalgi xulq saqlanadi (yarata oladi).
-  const canCreatePlan = isSuperAdmin
-    || (isAdmin && (currentUser as any)?.canCreateWorkPlans)
-    || (currentUser && currentUser.role !== "admin");
+  // Tugma hammaga ko'rinadi; agar global oy chegarasi qo'yilgan bo'lsa,
+  // server javob berib (403) cheklovni majburlaydi.
+  const canCreatePlan = !!currentUser;
 
   const canModify = (plan: any) =>
     isAdmin || (plan.status !== "approved" && plan.status !== "completed");

@@ -10,6 +10,28 @@ import { getTumanlarForViloyat } from "../lib/viloyatlar.js";
 
 const router: IRouter = Router();
 
+/* ── Foydalanuvchi Ijro yoki Mehnat mas'ulimi tekshirish ── */
+async function isResponsibleUser(userId: number): Promise<boolean> {
+  const [u] = await db.select({ employeeId: usersTable.employeeId, fullName: usersTable.fullName })
+    .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!u) return false;
+  let empId: number | null = u.employeeId ?? null;
+  if (empId === null && u.fullName) {
+    const [matched] = await db.select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(eq(employeesTable.fullName, u.fullName.trim()))
+      .limit(1);
+    if (matched) empId = matched.id;
+  }
+  if (empId === null) return false;
+  const [emp] = await db
+    .select({ ijro: employeesTable.isIjroResponsible, mehnat: employeesTable.isMehnatResponsible })
+    .from(employeesTable)
+    .where(eq(employeesTable.id, empId))
+    .limit(1);
+  return !!(emp?.ijro || emp?.mehnat);
+}
+
 /* ── Foydalanuvchining hududiga mos xodimlar ID larini olish (baholashlar uchun) ── */
 async function getEmployeeIdsForUser(userId: number): Promise<number[]> {
   const [user] = await db
@@ -69,18 +91,32 @@ async function getPlanScope(adminUserId: number): Promise<{ empIds: number[]; tu
    WORK PLANS approval
 ══════════════════════════════════════════════════════════════ */
 router.get("/approve/work-plans", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user!.role !== "admin") { res.status(403).json({ error: "Faqat admin uchun" }); return; }
   const userId = req.user!.id;
+  const isAdmin = req.user!.role === "admin";
+  const isResp = !isAdmin && (await isResponsibleUser(userId));
+
+  if (!isAdmin && !isResp) {
+    res.status(403).json({ error: "Faqat admin yoki Ijro/Mehnat mas'uli uchun" });
+    return;
+  }
+
   const { status = "pending" } = req.query as { status?: string };
 
-  const { empIds, tumanUserIds } = await getPlanScope(userId);
-
-  // Barcha ish rejalarni olish — employeeId (xodim jadvali) YOKI userId (foydalanuvchi) bo'yicha filtr
+  // Barcha ish rejalarni olish
   const allPlans = await db.select().from(workPlansTable).orderBy(workPlansTable.createdAt);
-  const plans = allPlans.filter((p) =>
-    (p.employeeId != null && empIds.includes(p.employeeId)) ||
-    (p.userId != null && tumanUserIds.includes(p.userId))
-  );
+
+  let plans;
+  if (isAdmin) {
+    // Admin — tuman bo'yicha cheklangan ko'rinish
+    const { empIds, tumanUserIds } = await getPlanScope(userId);
+    plans = allPlans.filter((p) =>
+      (p.employeeId != null && empIds.includes(p.employeeId)) ||
+      (p.userId != null && tumanUserIds.includes(p.userId))
+    );
+  } else {
+    // Ijro/Mehnat mas'uli (global rol) — barcha tumanlardagi planlarni ko'radi (faqat o'z bo'limini kiritish uchun)
+    plans = allPlans;
+  }
 
   const filtered = status === "all"
     ? plans

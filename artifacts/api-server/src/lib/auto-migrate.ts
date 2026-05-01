@@ -43,12 +43,18 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
     sql: `ALTER TABLE work_plan_tasks ADD COLUMN IF NOT EXISTS mehnat_result TEXT`,
   },
   {
-    name: "users.can_create_work_plans",
-    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create_work_plans BOOLEAN NOT NULL DEFAULT FALSE`,
+    name: "app_settings.create_table",
+    sql: `CREATE TABLE IF NOT EXISTS app_settings (
+            id SERIAL PRIMARY KEY,
+            key TEXT NOT NULL UNIQUE,
+            work_plan_create_period TEXT,
+            results_enter_period TEXT,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+          )`,
   },
   {
-    name: "users.can_enter_results",
-    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS can_enter_results BOOLEAN NOT NULL DEFAULT FALSE`,
+    name: "app_settings.seed_global_row",
+    sql: `INSERT INTO app_settings (key) VALUES ('global') ON CONFLICT (key) DO NOTHING`,
   },
 ];
 

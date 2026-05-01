@@ -52,6 +52,10 @@ router.get("/departments", requireAuth, async (req: AuthenticatedRequest, res: R
 });
 
 router.post("/departments", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") {
+    res.status(403).json({ error: "Faqat admin bo'lim qo'sha oladi" });
+    return;
+  }
   const { name, code, description, headName, tuman } = req.body as {
     name?: string;
     code?: string;
@@ -108,6 +112,10 @@ router.get("/departments/:id", requireAuth, async (req: AuthenticatedRequest, re
 });
 
 router.put("/departments/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") {
+    res.status(403).json({ error: "Faqat admin bo'limni tahrirlay oladi" });
+    return;
+  }
   const id = parseInt(req.params["id"] as string);
   const { name, code, description, headName, tuman } = req.body as {
     name?: string;
@@ -150,6 +158,10 @@ router.put("/departments/:id", requireAuth, async (req: AuthenticatedRequest, re
 });
 
 router.delete("/departments/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user!.role !== "admin") {
+    res.status(403).json({ error: "Faqat admin bo'limni o'chira oladi" });
+    return;
+  }
   const id = parseInt(req.params["id"] as string);
   const deleted = await db.delete(departmentsTable).where(eq(departmentsTable.id, id)).returning();
 
